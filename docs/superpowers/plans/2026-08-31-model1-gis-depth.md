@@ -1349,21 +1349,30 @@ type StreamEndpoint = {
 };
 
 export function CameraDrawer({
-  cameraId,
+  camera,
   onClose,
 }: {
-  cameraId: string | null;
+  // Pass the clicked tile feature's properties, not just the id: a heading reading
+  // "GJ-SEN-000002 · PTZ · OFFLINE" is legible in a demo, a raw UUID is not.
+  camera: { id: string; camera_uid: string; status: string; camera_type: string } | null;
   onClose: () => void;
 }) {
+  const cameraId = camera?.id ?? null;
   const [streams, setStreams] = useState<StreamEndpoint[]>([]);
 
   useEffect(() => {
     if (!cameraId) return;
-    setStreams([]);
+    // Do not reset state at the top of the effect: react-hooks/set-state-in-effect
+    // rejects it, and tagging the response with its request id is a stronger guard
+    // against a slow reply for a previously-selected camera landing last.
+    let active = true;
     fetch(`${API}/api/v1/cameras/${cameraId}/streams`)
       .then((r) => r.json())
-      .then(setStreams)
-      .catch(() => setStreams([]));
+      .then((data) => active && setStreams(data))
+      .catch(() => active && setStreams([]));
+    return () => {
+      active = false;
+    };
   }, [cameraId]);
 
   if (!cameraId) return null;
@@ -1373,7 +1382,10 @@ export function CameraDrawer({
       <button onClick={onClose} className="mb-4 text-sm text-slate-500 hover:text-slate-900">
         ← Close
       </button>
-      <h2 className="mb-4 font-mono text-lg font-semibold">{cameraId}</h2>
+      <h2 className="mb-1 font-mono text-lg font-semibold">{camera.camera_uid}</h2>
+      <p className="mb-4 text-xs uppercase text-slate-500">
+        {camera.camera_type} · {camera.status}
+      </p>
 
       <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">
         Stream endpoints
@@ -1957,13 +1969,10 @@ it tells you instantly whether the problem is your session cookie or your code.
 
 - [ ] **Step 7: Register the departments router**
 
-In `app/api/v1/router.py`:
+In `app/api/v1/router.py`, add `departments` to the existing import list and register it.
+Only add the modules that exist — `boundaries`, `coverage` and `health` arrive in Plans 3–4:
 
 ```python
-from app.api.v1.routers import (
-    boundaries, cameras, coverage, departments, health, onboarding, tiles,
-)
-
 api_router.include_router(departments.router)
 ```
 
