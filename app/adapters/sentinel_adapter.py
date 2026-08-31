@@ -3,6 +3,7 @@ from uuid import UUID
 
 import httpx
 
+from app.core.config import settings
 from app.core.enums import Reachability, SourceType, StreamProtocol
 from app.schemas.ingestion import RawCameraRecord
 
@@ -16,7 +17,14 @@ from app.schemas.ingestion import RawCameraRecord
 # Only used for the provenance label in source_ref. The dedupe key is resolved by
 # the department's field_mappings, so a catalogue naming its id differently still
 # onboards correctly -- this just keeps the trace label meaningful.
+# For the source_ref provenance label. `name` is a last resort here: a human label
+# still beats "sentinel:None" when tracing where a row came from.
 _ID_KEYS = ("id", "camera_id", "cam_id", "camera_ref", "name")
+
+# For building stream URLs. Deliberately excludes `name` -- a display name like
+# "01 Chiman bhai Bridge" is not a path segment, and templating it would produce a
+# URL that looks plausible and 404s.
+_URL_ID_KEYS = ("id", "camera_id", "cam_id", "camera_ref")
 
 _PROTOCOL_KEYS: dict[str, tuple[StreamProtocol, Reachability, bool]] = {
     "hls": (StreamProtocol.HLS, Reachability.PUBLIC_CDN, True),
@@ -65,11 +73,33 @@ class SentinelAdapter:
         raise ValueError(f"Unrecognised catalogue shape: {type(body).__name__}")
 
     def endpoints_for(self, entry: dict[str, Any]) -> list[dict[str, Any]]:
+        """Build this camera's stream endpoints.
+
+        The integrator's guide says the catalogue carries all three URLs, and that
+        "the catalogue is the contract, the URL pattern is not". The live catalogue
+        does not: each entry holds only `id` and `name`. So a URL present in the entry
+        still wins -- the guide's rule holds where it can -- and otherwise the URL is
+        templated from the documented pattern, which is the only way to reach a camera
+        at all. Templates come from settings because the host moves between the sandbox
+        and the production round.
+        """
+        camera_id = next(
+            (entry[key] for key in _URL_ID_KEYS if entry.get(key) not in (None, "")),
+            None,
+        )
+        templates = {
+            StreamProtocol.HLS.value: settings.sentinel_hls_template,
+            StreamProtocol.RTSP.value: settings.sentinel_rtsp_template,
+            StreamProtocol.WHEP.value: settings.sentinel_whep_template,
+        }
+
         endpoints: list[dict[str, Any]] = []
         for key, (protocol, reachability, requires_auth) in _PROTOCOL_KEYS.items():
             url = entry.get(key)
             if not url:
-                continue
+                if camera_id is None:
+                    continue
+                url = templates[protocol.value].format(id=camera_id)
             endpoints.append(
                 {
                     "protocol": protocol.value,
