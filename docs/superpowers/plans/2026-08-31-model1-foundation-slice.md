@@ -1501,7 +1501,7 @@ git commit -m "feat: camera validator with Gujarat bbox and optics range checks"
 - [ ] **Step 1: Create `app/schemas/ingestion.py`**
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -1699,6 +1699,10 @@ class CameraRepository:
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from geoalchemy2.elements import WKBElement, WKTElement
+from geoalchemy2.shape import to_shape
+from shapely import wkt as shapely_wkt
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.camera import Camera
@@ -1718,6 +1722,39 @@ _WRITABLE = {
 }
 
 
+# ~1.1 cm at the equator — finer than any coordinate a department can supply, coarse
+# enough to absorb float noise from the PostGIS round trip.
+_COORD_PRECISION = 7
+
+
+def _point_moved(stored: Any, longitude: float, latitude: float) -> bool:
+    """Has the camera actually moved?
+
+    `Camera.location` is written as `"SRID=4326;POINT(lon lat)"` but comes back from
+    PostGIS as a GeoAlchemy2 `WKBElement` whose `str()` is hex WKB — GeoAlchemy2 expires
+    geography attributes on flush, so even the row just inserted in this session reloads
+    that way. Comparing string forms would therefore always differ, reporting every
+    re-import as `updated` and silently breaking the idempotency guarantee. Compare
+    decoded coordinates instead.
+    """
+    if stored is None:
+        return True
+    if isinstance(stored, WKBElement | WKTElement):
+        point = to_shape(stored)
+    elif isinstance(stored, str):
+        # Assigned in this session and not yet flushed: "SRID=4326;POINT(lon lat)".
+        try:
+            point = shapely_wkt.loads(stored.split(";", 1)[-1])
+        except Exception:
+            return True
+    else:
+        return True
+    return (round(point.x, _COORD_PRECISION), round(point.y, _COORD_PRECISION)) != (
+        round(longitude, _COORD_PRECISION),
+        round(latitude, _COORD_PRECISION),
+    )
+
+
 class IngestionService:
     """The one function every onboarding path calls.
 
@@ -1731,8 +1768,6 @@ class IngestionService:
         self.validator = CameraValidator()
 
     async def _resolver(self, department: Department) -> tuple[FieldMappingResolver, int]:
-        from sqlalchemy import select
-
         stmt = (
             select(FieldMapping)
             .where(FieldMapping.department_id == department.id, FieldMapping.is_active)
@@ -1837,7 +1872,9 @@ class IngestionService:
             return "created"
 
         changed = False
-        if camera.location is not None and str(camera.location) != wkt:
+        if _point_moved(
+            camera.location, float(values["longitude"]), float(values["latitude"])
+        ):
             camera.location = wkt
             changed = True
         for key in _WRITABLE & values.keys():
@@ -1861,7 +1898,13 @@ class IngestionService:
 - [ ] **Step 6: Run the tests and make sure they pass**
 
 Run: `pytest tests/services/test_ingestion.py -v`
-Expected: 6 passed
+Expected: 7 passed
+
+`_point_moved` exists because `camera.location` reads back as a GeoAlchemy2 `WKBElement`,
+not the `SRID=4326;POINT(...)` string that was written — GeoAlchemy2 expires geography
+attributes on flush, so even a row inserted in this same session reloads as WKB. A naive
+`str(camera.location) != wkt` is therefore unconditionally true, every re-import reports
+`updated`, and idempotency is silently lost.
 
 The idempotency test is the one that matters most — it is what makes a nightly departmental
 sync safe to re-run, and it is worth demonstrating live to the judges.
