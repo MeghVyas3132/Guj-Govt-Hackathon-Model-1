@@ -1,0 +1,4 @@
+facility_cam_ref,coord_lat,coord_lon,camera_category,live,facility,retention
+HLTH-CH-0001,23.0339,72.5476,FIXED,YES,Civil Hospital Gate,15
+HLTH-CH-0002,23.0341,72.5480,FIXED,NO,Civil Hospital OPD Corridor,15
+HLTH-CH-0003,21.1959,72.8302,PTZ,YES,New Civil Surat Entrance,30

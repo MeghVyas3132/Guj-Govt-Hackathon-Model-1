@@ -1,0 +1,6 @@
+camera_id,latitude,longitude,type,status,location_name
+POL-BAD-001,23.0225,72.5714,FIXED,ACTIVE,Valid row
+POL-BAD-002,28.6139,77.2090,FIXED,ACTIVE,New Delhi - outside Gujarat
+POL-BAD-003,not-a-number,72.5714,FIXED,ACTIVE,Unparseable latitude
+POL-BAD-004,,,FIXED,ACTIVE,Missing coordinates entirely
+POL-BAD-005,23.0225,72.5714,FLYING-DRONE,WOBBLY,Unknown type and status

@@ -1,0 +1,6 @@
+camera_id,latitude,longitude,type,status,location_name,ward
+POL-A-001,23.0225,72.5714,FIXED,ACTIVE,Nehru Bridge East,Ward 12
+POL-A-002,23.0301,72.5799,PTZ,ACTIVE,Ashram Road Junction,Ward 12
+POL-A-003,23.0180,72.5650,FIXED,DOWN,Ellis Bridge West,Ward 11
+POL-R-004,22.3039,70.8022,PTZ,ACTIVE,Rajkot Trikon Baug,Ward 3
+POL-S-005,21.1702,72.8311,FIXED,AMC,Surat Ring Road,Ward 7
