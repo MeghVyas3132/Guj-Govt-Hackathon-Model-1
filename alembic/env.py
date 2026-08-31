@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.models import (  # noqa: F401
     admin_boundary,
     camera,
+    camera_health,
     department,
     field_mapping,
     stream_endpoint,

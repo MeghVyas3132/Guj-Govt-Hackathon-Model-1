@@ -8,6 +8,7 @@ from testcontainers.community.postgres import PostgresContainer
 from app.models import (  # noqa: F401
     admin_boundary,
     camera,
+    camera_health,
     department,
     field_mapping,
     stream_endpoint,
