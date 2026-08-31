@@ -55,7 +55,11 @@ class SentinelAdapter:
         self.transport = transport
 
     async def _get_catalogue(self) -> list[dict[str, Any]]:
-        cookies = {"session": self.session_cookie} if self.session_cookie else None
+        cookies = (
+            {settings.sentinel_cookie_name: self.session_cookie}
+            if self.session_cookie
+            else None
+        )
         async with httpx.AsyncClient(
             transport=self.transport, timeout=30.0, cookies=cookies
         ) as client:

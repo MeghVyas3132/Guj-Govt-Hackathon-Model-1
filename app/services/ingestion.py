@@ -11,6 +11,7 @@ from app.models.field_mapping import FieldMapping
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.ingestion import IngestReport, RawCameraRecord, RowResult
+from app.services.geocoding import DistrictGeocoder
 from app.services.normalization import FieldMappingResolver
 from app.services.validation import CameraValidator
 
@@ -67,8 +68,11 @@ class IngestionService:
         self.session = session
         self.cameras = CameraRepository(session)
         self.validator = CameraValidator()
+        self.geocoder = DistrictGeocoder(session)
 
-    async def _resolver(self, department: Department) -> tuple[FieldMappingResolver, int]:
+    async def _resolver(
+        self, department: Department
+    ) -> tuple[FieldMappingResolver, int, dict[str, Any]]:
         stmt = (
             select(FieldMapping)
             .where(FieldMapping.department_id == department.id, FieldMapping.is_active)
@@ -76,8 +80,8 @@ class IngestionService:
         )
         mapping = (await self.session.execute(stmt)).scalars().first()
         if mapping is None:
-            return FieldMappingResolver({}), 0
-        return FieldMappingResolver(mapping.config), mapping.version
+            return FieldMappingResolver({}), 0, {}
+        return FieldMappingResolver(mapping.config), mapping.version, mapping.config
 
     async def ingest(
         self,
@@ -85,11 +89,35 @@ class IngestionService:
         department: Department,
         mode: Literal["validate_only", "commit"],
     ) -> IngestReport:
-        resolver, mapping_version = await self._resolver(department)
+        resolver, mapping_version, config = await self._resolver(department)
+        geocode_from = config.get("geocode_from")
         report = IngestReport(total=len(records))
 
         for record in records:
             resolved = resolver.resolve(record.payload)
+
+            # Some sources give a place name and no coordinates. Resolve it to the
+            # district's representative point rather than dropping the camera, and
+            # record the imprecision in metadata so it is never mistaken for a
+            # surveyed position. Supplied coordinates always win.
+            if geocode_from and not (
+                resolved.values.get("latitude") and resolved.values.get("longitude")
+            ):
+                located = await self.geocoder.locate(resolved.values.get(geocode_from))
+                if located is not None:
+                    resolved.values["latitude"] = located.latitude
+                    resolved.values["longitude"] = located.longitude
+                    resolved.metadata |= {
+                        "geocode_precision": located.precision,
+                        "geocode_district": located.district_name,
+                        "geocode_matched_on": located.matched_on,
+                        "geocode_source": geocode_from,
+                    }
+                    resolved.warnings.append(
+                        f"No coordinates supplied; placed at the representative point of "
+                        f"{located.district_name} district (precision: {located.precision})."
+                    )
+
             validated = self.validator.validate(resolved.values)
             warnings = resolved.warnings + validated.warnings
             external_id = resolved.values.get("external_camera_id")

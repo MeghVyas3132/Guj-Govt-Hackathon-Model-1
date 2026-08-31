@@ -119,3 +119,102 @@ async def test_unmapped_columns_land_in_metadata(session, department):
     await service.ingest([record(department, pole_number="P-77")], department, mode="commit")
     camera = (await session.execute(select(Camera))).scalar_one()
     assert camera.metadata_["pole_number"] == "P-77"
+
+
+@pytest.fixture
+async def geocodable_department(session):
+    """A department whose source has names but no coordinates -- the Sentinel case."""
+    from geoalchemy2.shape import from_shape
+    from shapely.geometry import MultiPolygon, Polygon
+
+    from app.models.admin_boundary import AdminBoundary
+
+    session.add(
+        AdminBoundary(
+            level="district",
+            name="Junagadh",
+            geom=from_shape(
+                MultiPolygon(
+                    [Polygon([(70.2, 21.3), (70.7, 21.3), (70.7, 21.8), (70.2, 21.8)])]
+                ),
+                srid=4326,
+            ),
+        )
+    )
+    dept = Department(code="SEN", name="Sentinel Sandbox")
+    session.add(dept)
+    await session.flush()
+    session.add(
+        FieldMapping(
+            department_id=dept.id,
+            version=1,
+            config={
+                "column_map": {"id": "external_camera_id", "name": "name"},
+                "geocode_from": "name",
+            },
+        )
+    )
+    await session.commit()
+    return dept
+
+
+def nameonly_record(dept, name: str = "08 majewadi-gate-junagadh"):
+    return RawCameraRecord(
+        payload={"id": "cam08", "name": name},
+        department_id=dept.id,
+        source_type=SourceType.ADAPTER,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_record_with_no_coordinates_is_geocoded_from_its_name(
+    session, geocodable_department
+):
+    report = await IngestionService(session).ingest(
+        [nameonly_record(geocodable_department)], geocodable_department, mode="commit"
+    )
+    assert report.created == 1
+
+    camera = (await session.execute(select(Camera))).scalar_one()
+    assert camera.metadata_["geocode_precision"] == "district"
+    assert camera.metadata_["geocode_district"] == "Junagadh"
+    assert camera.metadata_["geocode_matched_on"] == "junagadh"
+
+
+@pytest.mark.asyncio
+async def test_geocoding_warns_so_the_imprecision_is_visible_in_the_report(
+    session, geocodable_department
+):
+    report = await IngestionService(session).ingest(
+        [nameonly_record(geocodable_department)], geocodable_department, mode="commit"
+    )
+    assert any("district" in w.lower() for w in report.rows[0].warnings)
+
+
+@pytest.mark.asyncio
+async def test_an_ungeocodable_name_fails_the_row_rather_than_guessing(
+    session, geocodable_department
+):
+    report = await IngestionService(session).ingest(
+        [nameonly_record(geocodable_department, name="23 kheram")],
+        geocodable_department,
+        mode="commit",
+    )
+    assert report.failed == 1
+    assert report.rows[0].errors[0].code == "missing_required_field"
+
+
+@pytest.mark.asyncio
+async def test_supplied_coordinates_are_never_overridden_by_geocoding(
+    session, geocodable_department
+):
+    record = nameonly_record(geocodable_department)
+    record.payload["latitude"] = 21.5
+    record.payload["longitude"] = 70.4
+
+    await IngestionService(session).ingest(
+        [record], geocodable_department, mode="commit"
+    )
+
+    camera = (await session.execute(select(Camera))).scalar_one()
+    assert "geocode_precision" not in camera.metadata_
