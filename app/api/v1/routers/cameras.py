@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from geoalchemy2.shape import to_shape
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.repositories.camera import CameraRepository
 from app.schemas.camera import CameraRead, StreamEndpointRead
 from app.schemas.common import Page
 from app.schemas.filters import CameraFilter
+from app.services.export import cameras_to_csv
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 
@@ -112,6 +113,31 @@ async def cameras_nearby(
         for camera, distance in rows
     ]
     return Page(items=items, total=len(items), limit=limit, offset=0)
+
+
+@router.get(
+    "/export.csv",
+    summary="Export the filtered result set as CSV",
+    description=(
+        "The same filter as the list endpoint and the tiles, rendered as a spreadsheet "
+        "a department can reconcile against its own records. An empty result still "
+        "returns a header row."
+    ),
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}, "description": "Matching cameras."}},
+)
+async def export_csv(
+    filters: CameraFilter = Depends(camera_filter),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    # Not paginated: a filtered export that silently stopped at 50 rows would be
+    # worse than no export, because it looks like a complete answer.
+    rows = await CameraRepository(session).list(filters, limit=100_000, offset=0)
+    return Response(
+        content=cameras_to_csv(rows),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="cameras.csv"'},
+    )
 
 
 @router.get("/{camera_id}", response_model=CameraRead)

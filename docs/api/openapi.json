@@ -1548,6 +1548,120 @@
         ]
       }
     },
+    "/api/v1/cameras/export.csv": {
+      "get": {
+        "description": "The same filter as the list endpoint and the tiles, rendered as a spreadsheet a department can reconcile against its own records. An empty result still returns a header row.",
+        "operationId": "export_csv_api_v1_cameras_export_csv_get",
+        "parameters": [
+          {
+            "description": "Free text over uid, name, address.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free text over uid, name, address.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_ids",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "title": "Department Ids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "camera_types",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraType"
+              },
+              "title": "Camera Types",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraStatus"
+              },
+              "title": "Statuses",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownership_classes",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/OwnershipClass"
+              },
+              "title": "Ownership Classes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "district_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "District Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "Matching cameras."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export the filtered result set as CSV",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
     "/api/v1/cameras/nearby": {
       "get": {
         "description": "The incident-response query: given an FIR location, which cameras could have seen it, closest first. Distances are true metres on the spheroid, not degrees.",
