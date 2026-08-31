@@ -279,6 +279,357 @@
         "title": "CameraCreate",
         "type": "object"
       },
+      "CameraNearby": {
+        "description": "A camera plus how far it is from the query point.\n\n`CameraRead` has no `distance_m` of its own, so spreading a CameraRead into this\nconstructor alongside `distance_m=` cannot collide on that key.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amc_expiry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Expiry Date"
+          },
+          "amc_vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Vendor"
+          },
+          "azimuth_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              135.0
+            ],
+            "title": "Azimuth Deg"
+          },
+          "camera_technology": {
+            "$ref": "#/components/schemas/CameraTechnology",
+            "default": "ip"
+          },
+          "camera_type": {
+            "$ref": "#/components/schemas/CameraType",
+            "default": "fixed"
+          },
+          "camera_uid": {
+            "examples": [
+              "GJ-POL-000123"
+            ],
+            "title": "Camera Uid",
+            "type": "string"
+          },
+          "connectivity": {
+            "$ref": "#/components/schemas/Connectivity",
+            "default": "unknown"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_status": {
+            "$ref": "#/components/schemas/CameraStatus",
+            "default": "unknown"
+          },
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "POL"
+            ],
+            "title": "Department Code"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "district_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District Id"
+          },
+          "external_camera_id": {
+            "examples": [
+              "cam04"
+            ],
+            "title": "External Camera Id",
+            "type": "string"
+          },
+          "fov_deg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 360.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              90.0
+            ],
+            "title": "Fov Deg"
+          },
+          "has_night_vision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Night Vision"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height M"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "install_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Date"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "latitude": {
+            "examples": [
+              23.0225
+            ],
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "lifecycle_state": {
+            "$ref": "#/components/schemas/LifecycleState",
+            "default": "active"
+          },
+          "longitude": {
+            "examples": [
+              72.5714
+            ],
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "description": "Department-specific fields with no canonical home. Never dropped.",
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Nehru Bridge East Approach"
+            ],
+            "title": "Name"
+          },
+          "operator_department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Department Id"
+          },
+          "ownership_class": {
+            "$ref": "#/components/schemas/OwnershipClass",
+            "default": "government"
+          },
+          "range_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              100.0
+            ],
+            "title": "Range M"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              15
+            ],
+            "title": "Retention Days"
+          },
+          "site_type": {
+            "$ref": "#/components/schemas/SiteType",
+            "default": "other"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "status_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Since"
+          },
+          "storage_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "local"
+            ],
+            "title": "Storage Type"
+          },
+          "stream_endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/StreamEndpointRead"
+            },
+            "title": "Stream Endpoints",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_camera_id",
+          "latitude",
+          "longitude",
+          "id",
+          "camera_uid",
+          "department_id",
+          "source_type",
+          "created_at",
+          "updated_at",
+          "distance_m"
+        ],
+        "title": "CameraNearby",
+        "type": "object"
+      },
       "CameraRead": {
         "properties": {
           "address": {
@@ -766,6 +1117,38 @@
         "title": "OwnershipClass",
         "type": "string"
       },
+      "Page_CameraNearby_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CameraNearby"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total rows matching the filter, ignoring pagination.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[CameraNearby]",
+        "type": "object"
+      },
       "Page_CameraRead_": {
         "properties": {
           "items": {
@@ -1051,6 +1434,90 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Free text over uid, name, address.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free text over uid, name, address.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_ids",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "title": "Department Ids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "camera_types",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraType"
+              },
+              "title": "Camera Types",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraStatus"
+              },
+              "title": "Statuses",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownership_classes",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/OwnershipClass"
+              },
+              "title": "Ownership Classes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "district_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "District Id"
+            }
           }
         ],
         "responses": {
@@ -1076,6 +1543,84 @@
           }
         },
         "summary": "List and filter cameras",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/cameras/nearby": {
+      "get": {
+        "description": "The incident-response query: given an FIR location, which cameras could have seen it, closest first. Distances are true metres on the spheroid, not degrees.",
+        "operationId": "cameras_nearby_api_v1_cameras_nearby_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_m",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 200000,
+              "title": "Radius M",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CameraNearby_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cameras within a radius, nearest first",
         "tags": [
           "cameras"
         ]
@@ -1338,7 +1883,7 @@
     },
     "/api/v1/tiles/cameras/{z}/{x}/{y}.mvt": {
       "get": {
-        "description": "Clustered counts below zoom 11, individual cameras at zoom 11 and above. Returns 204 when the tile contains no cameras.",
+        "description": "Clustered counts below zoom 11, individual cameras at zoom 11 and above. Returns 204 when the tile contains no cameras. Accepts the same filter query parameters as the list endpoint, so the map and the table always show the same result set.",
         "operationId": "camera_tile_api_v1_tiles_cameras__z___x___y__mvt_get",
         "parameters": [
           {
@@ -1370,6 +1915,90 @@
               "minimum": 0,
               "title": "Y",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Free text over uid, name, address.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free text over uid, name, address.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_ids",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "title": "Department Ids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "camera_types",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraType"
+              },
+              "title": "Camera Types",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CameraStatus"
+              },
+              "title": "Statuses",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownership_classes",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/OwnershipClass"
+              },
+              "title": "Ownership Classes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "district_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "District Id"
             }
           }
         ],

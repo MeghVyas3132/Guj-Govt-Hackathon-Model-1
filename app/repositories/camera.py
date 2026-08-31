@@ -106,3 +106,18 @@ class CameraRepository:
         """Total matches ignoring pagination, for the Page envelope."""
         stmt = self._apply(select(func.count()).select_from(Camera), filters)
         return (await self.session.execute(stmt)).scalar_one()
+
+    async def list_nearby(
+        self, filters: CameraFilter, limit: int = 50
+    ) -> list[tuple[Camera, float]]:
+        """Matching cameras paired with their true distance from the origin, in metres.
+
+        The same `_apply` and the same `_origin` as `list`, so a camera the table
+        shows inside the radius can never be missing from the nearest-first answer.
+        Returned as rows rather than scalars because the distance is computed by
+        PostGIS and has nowhere to live on the ORM object.
+        """
+        distance = func.ST_Distance(Camera.location, _origin(filters)).label("distance_m")
+        stmt = self._apply(select(Camera, distance), filters).order_by(distance).limit(limit)
+        rows = (await self.session.execute(stmt)).all()
+        return [(row[0], float(row[1])) for row in rows]
