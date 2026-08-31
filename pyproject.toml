@@ -49,3 +49,8 @@ known-third-party = ["alembic"]
 # sa/op/geoalchemy2 unused (F401).
 "alembic/env.py" = ["E402"]
 "alembic/versions/*" = ["E501", "F401", "I001"]
+# FastAPI's dependency-injection idiom *is* a function call in an argument default:
+# Depends(), Query(), File(). B008 flags all three. Restructuring the routers to
+# satisfy it would mean giving up FastAPI's signature-driven validation and OpenAPI
+# generation, so the rule is disabled for routers only, not project-wide.
+"app/api/v1/routers/*" = ["B008"]
