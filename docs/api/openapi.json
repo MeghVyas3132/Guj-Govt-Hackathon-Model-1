@@ -1,6 +1,32 @@
 {
   "components": {
     "schemas": {
+      "BatchAck": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "unmatched": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unmatched",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "changed",
+          "unmatched"
+        ],
+        "title": "BatchAck",
+        "type": "object"
+      },
       "Body_import_file_api_v1_onboarding_import_post": {
         "properties": {
           "file": {
@@ -1201,6 +1227,114 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthObservationIn": {
+        "description": "One observation pushed by a department system or produced by our prober.",
+        "properties": {
+          "camera_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera Id"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "external_camera_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Use this when pushing by the department's own id.",
+            "title": "External Camera Id"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CameraStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthObservationIn",
+        "type": "object"
+      },
+      "HealthSummary": {
+        "properties": {
+          "maintenance": {
+            "title": "Maintenance",
+            "type": "integer"
+          },
+          "offline": {
+            "title": "Offline",
+            "type": "integer"
+          },
+          "offline_over_24h": {
+            "title": "Offline Over 24H",
+            "type": "integer"
+          },
+          "offline_over_7d": {
+            "title": "Offline Over 7D",
+            "type": "integer"
+          },
+          "online": {
+            "title": "Online",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unknown": {
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "online",
+          "offline",
+          "unknown",
+          "maintenance",
+          "offline_over_24h",
+          "offline_over_7d"
+        ],
+        "title": "HealthSummary",
+        "type": "object"
+      },
       "IngestReport": {
         "properties": {
           "created": {
@@ -1247,6 +1381,77 @@
         ],
         "title": "LifecycleState",
         "type": "string"
+      },
+      "OfflineCamera": {
+        "properties": {
+          "camera_id": {
+            "format": "uuid",
+            "title": "Camera Id",
+            "type": "string"
+          },
+          "camera_uid": {
+            "title": "Camera Uid",
+            "type": "string"
+          },
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Code"
+          },
+          "downtime_seconds": {
+            "title": "Downtime Seconds",
+            "type": "number"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Since"
+          }
+        },
+        "required": [
+          "camera_id",
+          "camera_uid",
+          "name",
+          "department_code",
+          "latitude",
+          "longitude",
+          "status_since",
+          "downtime_seconds"
+        ],
+        "title": "OfflineCamera",
+        "type": "object"
       },
       "OwnershipClass": {
         "enum": [
@@ -1319,6 +1524,38 @@
           "offset"
         ],
         "title": "Page[CameraRead]",
+        "type": "object"
+      },
+      "Page_OfflineCamera_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineCamera"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total rows matching the filter, ignoring pagination.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[OfflineCamera]",
         "type": "object"
       },
       "Reachability": {
@@ -2128,6 +2365,199 @@
         "summary": "Publish a new field-mapping version",
         "tags": [
           "departments"
+        ]
+      }
+    },
+    "/api/v1/health/cameras/{camera_id}/history": {
+      "get": {
+        "operationId": "history_api_v1_health_cameras__camera_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 2000,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response History Api V1 Health Cameras  Camera Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observation history for one camera",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/health/observations": {
+      "post": {
+        "description": "Accepts observations keyed by the department's own camera id. Unknown ids are reported in `unmatched` rather than failing the batch, so a departmental sync is never blocked by one stale row.",
+        "operationId": "push_observations_api_v1_health_observations_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/HealthObservationIn"
+                },
+                "title": "Observations",
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push a batch of health observations",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/health/offline": {
+      "get": {
+        "operationId": "offline_api_v1_health_offline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_OfflineCamera_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Currently offline cameras, longest down first",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/health/summary": {
+      "get": {
+        "operationId": "summary_api_v1_health_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Fleet health counts",
+        "tags": [
+          "health"
         ]
       }
     },
