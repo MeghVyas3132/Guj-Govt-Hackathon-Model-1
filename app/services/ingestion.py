@@ -1,12 +1,10 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from geoalchemy2.elements import WKBElement, WKTElement
-from geoalchemy2.shape import to_shape
-from shapely import wkt as shapely_wkt
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.geo import to_lonlat
 from app.models.camera import Camera
 from app.models.department import Department
 from app.models.field_mapping import FieldMapping
@@ -44,28 +42,15 @@ _COORD_PRECISION = 7
 
 
 def _point_moved(stored: Any, longitude: float, latitude: float) -> bool:
-    """Has the camera actually moved?
+    """True when the stored point differs from the supplied coordinates.
 
-    `Camera.location` is written as `"SRID=4326;POINT(lon lat)"` but comes back from
-    PostGIS as a GeoAlchemy2 `WKBElement` whose `str()` is hex WKB — GeoAlchemy2 expires
-    geography attributes on flush, so even the row just inserted in this session reloads
-    that way. Comparing string forms would therefore always differ, reporting every
-    re-import as `updated` and silently breaking the idempotency guarantee. Compare
-    decoded coordinates instead.
+    An undecodable stored value counts as moved: a redundant write is the safe
+    direction, a silently dropped one is not.
     """
-    if stored is None:
+    coords = to_lonlat(stored)
+    if coords is None:
         return True
-    if isinstance(stored, WKBElement | WKTElement):
-        point = to_shape(stored)
-    elif isinstance(stored, str):
-        # Assigned in this session and not yet flushed: "SRID=4326;POINT(lon lat)".
-        try:
-            point = shapely_wkt.loads(stored.split(";", 1)[-1])
-        except Exception:
-            return True
-    else:
-        return True
-    return (round(point.x, _COORD_PRECISION), round(point.y, _COORD_PRECISION)) != (
+    return (round(coords[0], _COORD_PRECISION), round(coords[1], _COORD_PRECISION)) != (
         round(longitude, _COORD_PRECISION),
         round(latitude, _COORD_PRECISION),
     )

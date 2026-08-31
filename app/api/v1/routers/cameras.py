@@ -1,12 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from geoalchemy2.shape import to_shape
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.enums import CameraStatus, CameraType, OwnershipClass
+from app.core.geo import to_point
 from app.models.camera import Camera
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
@@ -26,7 +26,7 @@ def _to_read(row: Camera) -> CameraRead:
     from __dict__ carries SQLAlchemy's `_sa_instance_state` along; pydantic ignores
     unknown keys, so it is harmless.
     """
-    point = to_shape(row.location)
+    point = to_point(row.location)
     return CameraRead.model_validate(
         {
             **row.__dict__,

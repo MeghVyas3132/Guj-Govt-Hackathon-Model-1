@@ -11,8 +11,7 @@ import csv
 import io
 from collections.abc import Iterable
 
-from geoalchemy2.shape import to_shape
-
+from app.core.geo import to_point
 from app.models.camera import Camera
 
 COLUMNS = [
@@ -49,7 +48,7 @@ def cameras_to_csv(cameras: Iterable[Camera]) -> str:
     for camera in cameras:
         # latitude/longitude are not attributes -- they are derived from the
         # GEOGRAPHY column, so getattr would silently emit two empty columns.
-        point = to_shape(camera.location)
+        point = to_point(camera.location)
         row = {column: getattr(camera, column, None) for column in COLUMNS}
         row["latitude"] = point.y
         row["longitude"] = point.x
