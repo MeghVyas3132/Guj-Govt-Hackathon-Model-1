@@ -52,6 +52,11 @@ class CoverageRun(Base, UUIDMixin, TimestampMixin):
     camera_count: Mapped[int] = mapped_column(Integer, default=0)
     online_camera_count: Mapped[int] = mapped_column(Integer, default=0)
     assumed_omnidirectional_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Cameras whose position is a district representative point, not a surveyed
+    # location. Their coverage blob sits where no camera actually stands.
+    district_located_camera_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
+    )
 
     finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

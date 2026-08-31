@@ -33,78 +33,108 @@ from app.schemas.coverage import CoverageRunRequest
 # once, which pulls `clipped`'s ST_Intersection up into the outer query -- where
 # `clipped.cell` appears seven times, so the clip is recomputed seven times per cell.
 # Against Ahmadabad that turned a 2-second step into minutes.
-_COMPUTE = text(
+# Coverage is computed with a spatial join rather than one global union.
+#
+# The obvious formulation -- ST_Union every footprint into a single geometry, then
+# intersect each cell against it -- is quadratic in disguise: the union of a few
+# thousand footprints has hundreds of thousands of vertices, and every one of the
+# tens of thousands of cells is then clipped against all of them. On Bhavnagar at
+# 80k cameras that had not finished after 142 seconds.
+#
+# Instead each cell unions only the handful of footprints that actually touch it,
+# found through a GIST index. Temp tables rather than CTEs because PostgreSQL
+# cannot index a CTE, and without an index the join degrades to a nested loop.
+
+_CAMS_TABLE = text(
     """
+    CREATE TEMP TABLE _cov_cams ON COMMIT DROP AS
+    SELECT c.id,
+           c.current_status,
+           c.camera_type,
+           c.azimuth_deg,
+           c.fov_deg,
+           (c.metadata->>'geocode_precision') AS geocode_precision,
+           camera_footprint(
+               c.location, c.camera_type, c.azimuth_deg, c.fov_deg, c.range_m
+           )::geometry AS shape
+    FROM cameras c
+    WHERE c.is_active
+      AND c.lifecycle_state = 'active'
+      AND ST_DWithin(
+          c.location,
+          (SELECT geom FROM admin_boundaries WHERE id = :boundary_id),
+          2000
+      )
+    """
+)
+
+_CAMS_INDEX = text("CREATE INDEX ON _cov_cams USING GIST (shape)")
+_CAMS_ANALYZE = text("ANALYZE _cov_cams")
+
+_CELLS_TABLE = text(
+    """
+    CREATE TEMP TABLE _cov_cells ON COMMIT DROP AS
     WITH aoi AS MATERIALIZED (
         SELECT geom::geometry AS geom FROM admin_boundaries WHERE id = :boundary_id
     ),
     cells AS MATERIALIZED (
-        SELECT (ST_HexagonGrid(:edge_deg, aoi.geom)).geom AS cell
-        FROM aoi
-    ),
-    -- Most cells fall wholly inside the district and need no clipping at all. Testing
-    -- that first matters because ST_ContainsProperly reuses PostGIS's prepared-geometry
-    -- cache for the repeated AOI argument while ST_Intersection cannot: on Ahmadabad's
-    -- 9,495-vertex boundary, clipping every cell costs 24s and clipping only the fringe
-    -- costs 2s for an identical result.
-    clipped AS MATERIALIZED (
-        SELECT CASE
-                   WHEN ST_ContainsProperly(aoi.geom, cells.cell)
-                   THEN ST_Multi(cells.cell)
-                   ELSE ST_Multi(
-                       ST_CollectionExtract(ST_Intersection(cells.cell, aoi.geom), 3)
-                   )
-               END AS cell
-        FROM cells, aoi
-        WHERE ST_Intersects(cells.cell, aoi.geom)
-    ),
-    cams AS MATERIALIZED (
-        SELECT c.id,
-               c.current_status,
-               camera_footprint(
-                   c.location, c.camera_type, c.azimuth_deg, c.fov_deg, c.range_m
-               )::geometry AS shape
-        FROM cameras c, aoi
-        WHERE c.is_active
-          AND c.lifecycle_state = 'active'
-          AND ST_DWithin(c.location, aoi.geom::geography, 2000)
-    ),
-    installed AS MATERIALIZED (SELECT ST_Union(shape) AS shape FROM cams),
-    effective AS MATERIALIZED (
-        SELECT ST_Union(shape) AS shape FROM cams WHERE current_status = 'online'
+        SELECT (ST_HexagonGrid(:edge_deg, aoi.geom)).geom AS cell FROM aoi
     )
+    -- Most cells fall wholly inside the district and need no clipping. Testing that
+    -- first matters because ST_ContainsProperly reuses PostGIS's prepared-geometry
+    -- cache for the repeated AOI argument while ST_Intersection cannot.
+    SELECT CASE
+               WHEN ST_ContainsProperly(aoi.geom, cells.cell) THEN ST_Multi(cells.cell)
+               ELSE ST_Multi(ST_CollectionExtract(ST_Intersection(cells.cell, aoi.geom), 3))
+           END AS cell
+    FROM cells, aoi
+    WHERE ST_Intersects(cells.cell, aoi.geom)
+    """
+)
+
+_CELLS_INDEX = text("CREATE INDEX ON _cov_cells USING GIST (cell)")
+_CELLS_ANALYZE = text("ANALYZE _cov_cells")
+
+_COMPUTE = text(
+    """
     INSERT INTO coverage_cells
-        (id, run_id, geom, installed_fraction, effective_fraction, classification, camera_count)
+        (id, run_id, geom, installed_fraction, effective_fraction, classification,
+         camera_count)
     SELECT
         gen_random_uuid(),
         :run_id,
-        clipped.cell::geography,
-        inst.fraction,
-        eff.fraction,
+        agg.cell::geography,
+        agg.installed,
+        agg.effective,
         CASE
-            WHEN inst.fraction >= :covered THEN 'covered'
-            WHEN inst.fraction >= :gap     THEN 'partial'
+            WHEN agg.installed >= :covered THEN 'covered'
+            WHEN agg.installed >= :gap     THEN 'partial'
             ELSE 'gap'
         END,
-        (SELECT count(*) FROM cams WHERE ST_Intersects(cams.shape, clipped.cell))
-    FROM clipped
-    CROSS JOIN LATERAL (
-        SELECT COALESCE(
-            ST_Area(ST_Intersection(clipped.cell, installed.shape)) /
-            NULLIF(ST_Area(clipped.cell), 0), 0
-        ) AS fraction
-        FROM installed
-    ) inst
-    CROSS JOIN LATERAL (
-        SELECT COALESCE(
-            ST_Area(ST_Intersection(clipped.cell, effective.shape)) /
-            NULLIF(ST_Area(clipped.cell), 0), 0
-        ) AS fraction
-        FROM effective
-    ) eff
-    -- A cell that only touches the boundary clips to nothing. Storing it would add a
-    -- zero-area row that counts against the district average for no reason.
-    WHERE NOT ST_IsEmpty(clipped.cell)
+        agg.camera_count
+    FROM (
+        SELECT
+            cl.cell,
+            COALESCE(
+                ST_Area(ST_Intersection(cl.cell, ST_Union(cm.shape)))
+                / NULLIF(ST_Area(cl.cell), 0), 0
+            ) AS installed,
+            COALESCE(
+                ST_Area(
+                    ST_Intersection(
+                        cl.cell,
+                        ST_Union(cm.shape) FILTER (WHERE cm.current_status = 'online')
+                    )
+                ) / NULLIF(ST_Area(cl.cell), 0), 0
+            ) AS effective,
+            count(cm.id) AS camera_count
+        FROM _cov_cells cl
+        LEFT JOIN _cov_cams cm ON ST_Intersects(cm.shape, cl.cell)
+        -- A cell that only grazes the boundary clips to nothing. Storing it would add
+        -- a zero-area row dragging down the district average for no reason.
+        WHERE NOT ST_IsEmpty(cl.cell)
+        GROUP BY cl.cell
+    ) agg
     """
 )
 
@@ -125,24 +155,20 @@ _SUMMARISE = text(
 # map is worse than no stat.
 _CAMERA_STATS = text(
     """
-    WITH aoi AS (
-        SELECT geom::geometry AS geom FROM admin_boundaries WHERE id = :boundary_id
-    )
     SELECT
-        count(*)                                                       AS camera_count,
-        count(*) FILTER (WHERE c.current_status = 'online')            AS online_count,
+        count(*)                                            AS camera_count,
+        count(*) FILTER (WHERE current_status = 'online')   AS online_count,
         count(*) FILTER (
-            WHERE c.camera_type NOT IN ('ptz', 'dome')
-              AND (
-                  c.azimuth_deg IS NULL
-                  OR c.fov_deg IS NULL
-                  OR c.fov_deg >= 360
-              )
-        )                                                              AS assumed_omni
-    FROM cameras c, aoi
-    WHERE c.is_active
-      AND c.lifecycle_state = 'active'
-      AND ST_DWithin(c.location, aoi.geom::geography, 2000)
+            WHERE geocode_precision = 'district'
+        )                                                   AS district_located,
+        -- A non-PTZ camera with no recorded bearing is treated as omnidirectional
+        -- by camera_footprint, which OVERSTATES its contribution. Counted so the
+        -- report can say so rather than quietly inflating the number.
+        count(*) FILTER (
+            WHERE camera_type NOT IN ('ptz', 'dome')
+              AND (azimuth_deg IS NULL OR fov_deg IS NULL OR fov_deg >= 360)
+        )                                                   AS assumed_omni
+    FROM _cov_cams
     """
 )
 
@@ -196,12 +222,19 @@ class CoverageService:
             # would remove it entirely and is the right fix given time.
             edge_deg = request.hex_edge_m / METRES_PER_DEGREE
 
+            await self.session.execute(_CAMS_TABLE, {"boundary_id": boundary.id})
+            await self.session.execute(_CAMS_INDEX)
+            await self.session.execute(_CAMS_ANALYZE)
+            await self.session.execute(
+                _CELLS_TABLE,
+                {"boundary_id": boundary.id, "edge_deg": edge_deg},
+            )
+            await self.session.execute(_CELLS_INDEX)
+            await self.session.execute(_CELLS_ANALYZE)
             await self.session.execute(
                 _COMPUTE,
                 {
-                    "boundary_id": boundary.id,
                     "run_id": run.id,
-                    "edge_deg": edge_deg,
                     "covered": request.covered_threshold,
                     "gap": request.gap_threshold,
                 },
@@ -218,6 +251,7 @@ class CoverageService:
             run.camera_count = stats.camera_count
             run.online_camera_count = stats.online_count
             run.assumed_omnidirectional_count = stats.assumed_omni
+            run.district_located_camera_count = stats.district_located
             run.status = "done"
         except Exception as exc:
             # A failed statement poisons the transaction, so the half-written run has to

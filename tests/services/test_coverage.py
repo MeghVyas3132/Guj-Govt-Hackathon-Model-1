@@ -250,3 +250,41 @@ async def test_a_failed_run_is_recorded_rather_than_vanishing(
     assert run.status == "failed"
     assert "no_such_function" in run.error
     assert run.finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_district_located_cameras_are_counted_for_disclosure(
+    session, small_district, seeded_department
+):
+    """A camera geocoded to a district representative point contributes a coverage
+    blob where no camera physically stands. The run must count them so the report
+    can disclose it rather than presenting the figure as surveyed."""
+    from sqlalchemy import text
+
+    await add_camera(session, seeded_department, "C-1", 72.575, 23.025)
+    await session.execute(
+        text(
+            "UPDATE cameras SET metadata = jsonb_build_object("
+            "'geocode_precision', 'district') WHERE external_camera_id = 'C-1'"
+        )
+    )
+    await session.commit()
+
+    run = await CoverageService(session).run(
+        CoverageRunRequest(boundary_id=small_district.id, hex_edge_m=150)
+    )
+
+    assert run.camera_count == 1
+    assert run.district_located_camera_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a_surveyed_camera_is_not_counted_as_district_located(
+    session, small_district, seeded_department
+):
+    await add_camera(session, seeded_department, "C-1", 72.575, 23.025)
+    run = await CoverageService(session).run(
+        CoverageRunRequest(boundary_id=small_district.id, hex_edge_m=150)
+    )
+    assert run.camera_count == 1
+    assert run.district_located_camera_count == 0

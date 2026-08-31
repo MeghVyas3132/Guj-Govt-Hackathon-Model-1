@@ -27,6 +27,7 @@ class CoverageRunRead(BaseModel):
     camera_count: int
     online_camera_count: int
     assumed_omnidirectional_count: int
+    district_located_camera_count: int = 0
     created_at: datetime
     finished_at: datetime | None
     error: str | None
