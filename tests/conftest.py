@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     field_mapping,
     stream_endpoint,
 )
+from app.core.coverage_sql import COVERAGE_FUNCTIONS
 from app.models.base import Base
 
 
@@ -29,6 +30,11 @@ async def session(postgres_url: str) -> AsyncSession:
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS postgis")
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+        # create_all builds tables from the ORM metadata only; the footprint functions
+        # are raw DDL owned by a migration. Both install them from the same module so
+        # the tests exercise exactly the definitions the migration ships.
+        for statement in COVERAGE_FUNCTIONS:
+            await conn.exec_driver_sql(statement)
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as s:
         yield s
