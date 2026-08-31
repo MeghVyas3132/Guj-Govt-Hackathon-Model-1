@@ -30,6 +30,8 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Makes scripts/ importable from tests; the editable install only exposes app/.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

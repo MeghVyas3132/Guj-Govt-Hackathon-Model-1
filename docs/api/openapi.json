@@ -1,804 +1,1423 @@
 {
-    "openapi": "3.1.0",
-    "info": {
-        "title": "Sentinel CCTV Registry",
-        "description": "Model 1 \u2014 Centralised CCTV Registry & GIS Foundation.",
-        "version": "1.0.0"
-    },
-    "paths": {
-        "/healthz": {
-            "get": {
-                "tags": [
-                    "system"
-                ],
-                "summary": "Healthz",
-                "operationId": "healthz_healthz_get",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    },
-                                    "type": "object",
-                                    "title": "Response Healthz Healthz Get"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+  "components": {
+    "schemas": {
+      "Body_import_file_api_v1_onboarding_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
         },
-        "/api/v1/cameras": {
-            "get": {
-                "tags": [
-                    "cameras"
-                ],
-                "summary": "List and filter cameras",
-                "operationId": "list_cameras_api_v1_cameras_get",
-                "parameters": [
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "maximum": 500,
-                            "default": 50,
-                            "title": "Limit"
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "default": 0,
-                            "title": "Offset"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Page_CameraRead_"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_file_api_v1_onboarding_import_post",
+        "type": "object"
+      },
+      "Body_preview_api_v1_onboarding_preview_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
         },
-        "/api/v1/cameras/{camera_id}": {
-            "get": {
-                "tags": [
-                    "cameras"
-                ],
-                "summary": "Get Camera",
-                "operationId": "get_camera_api_v1_cameras__camera_id__get",
-                "parameters": [
-                    {
-                        "name": "camera_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Camera Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/CameraRead"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        "required": [
+          "file"
+        ],
+        "title": "Body_preview_api_v1_onboarding_preview_post",
+        "type": "object"
+      },
+      "CameraCreate": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amc_expiry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Expiry Date"
+          },
+          "amc_vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Vendor"
+          },
+          "azimuth_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              135.0
+            ],
+            "title": "Azimuth Deg"
+          },
+          "camera_technology": {
+            "$ref": "#/components/schemas/CameraTechnology",
+            "default": "ip"
+          },
+          "camera_type": {
+            "$ref": "#/components/schemas/CameraType",
+            "default": "fixed"
+          },
+          "connectivity": {
+            "$ref": "#/components/schemas/Connectivity",
+            "default": "unknown"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "external_camera_id": {
+            "examples": [
+              "cam04"
+            ],
+            "title": "External Camera Id",
+            "type": "string"
+          },
+          "fov_deg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 360.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              90.0
+            ],
+            "title": "Fov Deg"
+          },
+          "has_night_vision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Night Vision"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height M"
+          },
+          "install_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Date"
+          },
+          "latitude": {
+            "examples": [
+              23.0225
+            ],
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "examples": [
+              72.5714
+            ],
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "description": "Department-specific fields with no canonical home. Never dropped.",
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Nehru Bridge East Approach"
+            ],
+            "title": "Name"
+          },
+          "operator_department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Department Id"
+          },
+          "ownership_class": {
+            "$ref": "#/components/schemas/OwnershipClass",
+            "default": "government"
+          },
+          "range_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              100.0
+            ],
+            "title": "Range M"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              15
+            ],
+            "title": "Retention Days"
+          },
+          "site_type": {
+            "$ref": "#/components/schemas/SiteType",
+            "default": "other"
+          },
+          "storage_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "local"
+            ],
+            "title": "Storage Type"
+          }
         },
-        "/api/v1/cameras/{camera_id}/streams": {
-            "get": {
-                "tags": [
-                    "cameras"
-                ],
-                "summary": "Stream endpoints for this camera",
-                "description": "Entry point for Models 2-4. Prefer the endpoint whose reachability matches your network: public_cdn works anywhere, direct_ip needs gateway ports open.",
-                "operationId": "get_camera_streams_api_v1_cameras__camera_id__streams_get",
-                "parameters": [
-                    {
-                        "name": "camera_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Camera Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/StreamEndpointRead"
-                                    },
-                                    "title": "Response Get Camera Streams Api V1 Cameras  Camera Id  Streams Get"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
+        "required": [
+          "external_camera_id",
+          "latitude",
+          "longitude",
+          "department_id"
+        ],
+        "title": "CameraCreate",
+        "type": "object"
+      },
+      "CameraRead": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amc_expiry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Expiry Date"
+          },
+          "amc_vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Vendor"
+          },
+          "azimuth_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              135.0
+            ],
+            "title": "Azimuth Deg"
+          },
+          "camera_technology": {
+            "$ref": "#/components/schemas/CameraTechnology",
+            "default": "ip"
+          },
+          "camera_type": {
+            "$ref": "#/components/schemas/CameraType",
+            "default": "fixed"
+          },
+          "camera_uid": {
+            "examples": [
+              "GJ-POL-000123"
+            ],
+            "title": "Camera Uid",
+            "type": "string"
+          },
+          "connectivity": {
+            "$ref": "#/components/schemas/Connectivity",
+            "default": "unknown"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_status": {
+            "$ref": "#/components/schemas/CameraStatus",
+            "default": "unknown"
+          },
+          "department_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "POL"
+            ],
+            "title": "Department Code"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "district_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District Id"
+          },
+          "external_camera_id": {
+            "examples": [
+              "cam04"
+            ],
+            "title": "External Camera Id",
+            "type": "string"
+          },
+          "fov_deg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 360.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              90.0
+            ],
+            "title": "Fov Deg"
+          },
+          "has_night_vision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Night Vision"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height M"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "install_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Date"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "latitude": {
+            "examples": [
+              23.0225
+            ],
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "lifecycle_state": {
+            "$ref": "#/components/schemas/LifecycleState",
+            "default": "active"
+          },
+          "longitude": {
+            "examples": [
+              72.5714
+            ],
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "description": "Department-specific fields with no canonical home. Never dropped.",
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Nehru Bridge East Approach"
+            ],
+            "title": "Name"
+          },
+          "operator_department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Department Id"
+          },
+          "ownership_class": {
+            "$ref": "#/components/schemas/OwnershipClass",
+            "default": "government"
+          },
+          "range_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              100.0
+            ],
+            "title": "Range M"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              15
+            ],
+            "title": "Retention Days"
+          },
+          "site_type": {
+            "$ref": "#/components/schemas/SiteType",
+            "default": "other"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "status_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Since"
+          },
+          "storage_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "local"
+            ],
+            "title": "Storage Type"
+          },
+          "stream_endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/StreamEndpointRead"
+            },
+            "title": "Stream Endpoints",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_camera_id",
+          "latitude",
+          "longitude",
+          "id",
+          "camera_uid",
+          "department_id",
+          "source_type",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CameraRead",
+        "type": "object"
+      },
+      "CameraStatus": {
+        "enum": [
+          "online",
+          "offline",
+          "unknown",
+          "maintenance"
+        ],
+        "title": "CameraStatus",
+        "type": "string"
+      },
+      "CameraTechnology": {
+        "enum": [
+          "analog",
+          "ip",
+          "unknown"
+        ],
+        "title": "CameraTechnology",
+        "type": "string"
+      },
+      "CameraType": {
+        "enum": [
+          "fixed",
+          "ptz",
+          "dome",
+          "bullet",
+          "anpr",
+          "thermal",
+          "other"
+        ],
+        "title": "CameraType",
+        "type": "string"
+      },
+      "Connectivity": {
+        "enum": [
+          "fiber",
+          "4g",
+          "5g",
+          "wifi",
+          "lan",
+          "unknown"
+        ],
+        "title": "Connectivity",
+        "type": "string"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IngestReport": {
+        "properties": {
+          "created": {
+            "default": 0,
+            "title": "Created",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "rows": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RowResult"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "skipped": {
+            "default": 0,
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "updated": {
+            "default": 0,
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "title": "IngestReport",
+        "type": "object"
+      },
+      "LifecycleState": {
+        "enum": [
+          "active",
+          "decommissioned"
+        ],
+        "title": "LifecycleState",
+        "type": "string"
+      },
+      "OwnershipClass": {
+        "enum": [
+          "government",
+          "private",
+          "ppp"
+        ],
+        "title": "OwnershipClass",
+        "type": "string"
+      },
+      "Page_CameraRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CameraRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total rows matching the filter, ignoring pagination.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[CameraRead]",
+        "type": "object"
+      },
+      "Reachability": {
+        "enum": [
+          "public_cdn",
+          "direct_ip",
+          "lan_only"
+        ],
+        "title": "Reachability",
+        "type": "string"
+      },
+      "RowResult": {
+        "properties": {
+          "errors": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "external_camera_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Camera Id"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "row_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Number"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "RowResult",
+        "type": "object"
+      },
+      "SiteType": {
+        "enum": [
+          "traffic_junction",
+          "godown",
+          "pds_shop",
+          "rto_checkpoint",
+          "office",
+          "hospital",
+          "bus_depot",
+          "border_checkpost",
+          "public_space",
+          "other"
+        ],
+        "title": "SiteType",
+        "type": "string"
+      },
+      "SourceType": {
+        "enum": [
+          "csv",
+          "manual",
+          "api",
+          "adapter"
+        ],
+        "title": "SourceType",
+        "type": "string"
+      },
+      "StreamEndpointRead": {
+        "description": "How Models 2-4 reach this camera. Credentials are omitted unless the caller\nholds the streams:credentials scope.",
+        "properties": {
+          "codec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "h264"
+            ],
+            "title": "Codec"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_primary": {
+            "default": true,
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/StreamProtocol"
+          },
+          "reachability": {
+            "$ref": "#/components/schemas/Reachability",
+            "description": "public_cdn works on any network; direct_ip needs gateway ports open."
+          },
+          "requires_auth": {
+            "default": false,
+            "title": "Requires Auth",
+            "type": "boolean"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "1920x1080"
+            ],
+            "title": "Resolution"
+          },
+          "url": {
+            "examples": [
+              "rtsp://103.250.160.189:8554/stream/cam04"
+            ],
+            "title": "Url",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "protocol",
+          "url",
+          "reachability"
+        ],
+        "title": "StreamEndpointRead",
+        "type": "object"
+      },
+      "StreamProtocol": {
+        "enum": [
+          "rtsp",
+          "hls",
+          "whep",
+          "onvif",
+          "snapshot"
+        ],
+        "title": "StreamProtocol",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
                 }
-            }
-        }
-    },
-    "components": {
-        "schemas": {
-            "CameraRead": {
-                "properties": {
-                    "external_camera_id": {
-                        "type": "string",
-                        "title": "External Camera Id",
-                        "examples": [
-                            "cam04"
-                        ]
-                    },
-                    "name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Name",
-                        "examples": [
-                            "Nehru Bridge East Approach"
-                        ]
-                    },
-                    "latitude": {
-                        "type": "number",
-                        "maximum": 90.0,
-                        "minimum": -90.0,
-                        "title": "Latitude",
-                        "examples": [
-                            23.0225
-                        ]
-                    },
-                    "longitude": {
-                        "type": "number",
-                        "maximum": 180.0,
-                        "minimum": -180.0,
-                        "title": "Longitude",
-                        "examples": [
-                            72.5714
-                        ]
-                    },
-                    "address": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Address"
-                    },
-                    "camera_type": {
-                        "$ref": "#/components/schemas/CameraType",
-                        "default": "fixed"
-                    },
-                    "camera_technology": {
-                        "$ref": "#/components/schemas/CameraTechnology",
-                        "default": "ip"
-                    },
-                    "azimuth_deg": {
-                        "anyOf": [
-                            {
-                                "type": "number",
-                                "exclusiveMaximum": 360.0,
-                                "minimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Azimuth Deg",
-                        "examples": [
-                            135.0
-                        ]
-                    },
-                    "fov_deg": {
-                        "anyOf": [
-                            {
-                                "type": "number",
-                                "maximum": 360.0,
-                                "exclusiveMinimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Fov Deg",
-                        "examples": [
-                            90.0
-                        ]
-                    },
-                    "range_m": {
-                        "anyOf": [
-                            {
-                                "type": "number",
-                                "exclusiveMinimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Range M",
-                        "examples": [
-                            100.0
-                        ]
-                    },
-                    "height_m": {
-                        "anyOf": [
-                            {
-                                "type": "number",
-                                "exclusiveMinimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Height M"
-                    },
-                    "resolution": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Resolution"
-                    },
-                    "has_night_vision": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Has Night Vision"
-                    },
-                    "connectivity": {
-                        "$ref": "#/components/schemas/Connectivity",
-                        "default": "unknown"
-                    },
-                    "storage_type": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Storage Type",
-                        "examples": [
-                            "local"
-                        ]
-                    },
-                    "retention_days": {
-                        "anyOf": [
-                            {
-                                "type": "integer",
-                                "minimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Retention Days",
-                        "examples": [
-                            15
-                        ]
-                    },
-                    "ownership_class": {
-                        "$ref": "#/components/schemas/OwnershipClass",
-                        "default": "government"
-                    },
-                    "site_type": {
-                        "$ref": "#/components/schemas/SiteType",
-                        "default": "other"
-                    },
-                    "amc_vendor": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Amc Vendor"
-                    },
-                    "amc_expiry_date": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Amc Expiry Date"
-                    },
-                    "install_date": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Install Date"
-                    },
-                    "metadata": {
-                        "additionalProperties": true,
-                        "type": "object",
-                        "title": "Metadata",
-                        "description": "Department-specific fields with no canonical home. Never dropped."
-                    },
-                    "id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Id"
-                    },
-                    "camera_uid": {
-                        "type": "string",
-                        "title": "Camera Uid",
-                        "examples": [
-                            "GJ-POL-000123"
-                        ]
-                    },
-                    "department_id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Department Id"
-                    },
-                    "department_code": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Department Code",
-                        "examples": [
-                            "POL"
-                        ]
-                    },
-                    "operator_department_id": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "uuid"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Operator Department Id"
-                    },
-                    "district_id": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "uuid"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "District Id"
-                    },
-                    "current_status": {
-                        "$ref": "#/components/schemas/CameraStatus",
-                        "default": "unknown"
-                    },
-                    "status_since": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Status Since"
-                    },
-                    "last_seen_at": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Last Seen At"
-                    },
-                    "lifecycle_state": {
-                        "$ref": "#/components/schemas/LifecycleState",
-                        "default": "active"
-                    },
-                    "source_type": {
-                        "$ref": "#/components/schemas/SourceType"
-                    },
-                    "stream_endpoints": {
-                        "items": {
-                            "$ref": "#/components/schemas/StreamEndpointRead"
-                        },
-                        "type": "array",
-                        "title": "Stream Endpoints"
-                    },
-                    "created_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Created At"
-                    },
-                    "updated_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Updated At"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "external_camera_id",
-                    "latitude",
-                    "longitude",
-                    "id",
-                    "camera_uid",
-                    "department_id",
-                    "source_type",
-                    "created_at",
-                    "updated_at"
-                ],
-                "title": "CameraRead"
+              ]
             },
-            "CameraStatus": {
-                "type": "string",
-                "enum": [
-                    "online",
-                    "offline",
-                    "unknown",
-                    "maintenance"
-                ],
-                "title": "CameraStatus"
-            },
-            "CameraTechnology": {
-                "type": "string",
-                "enum": [
-                    "analog",
-                    "ip",
-                    "unknown"
-                ],
-                "title": "CameraTechnology"
-            },
-            "CameraType": {
-                "type": "string",
-                "enum": [
-                    "fixed",
-                    "ptz",
-                    "dome",
-                    "bullet",
-                    "anpr",
-                    "thermal",
-                    "other"
-                ],
-                "title": "CameraType"
-            },
-            "Connectivity": {
-                "type": "string",
-                "enum": [
-                    "fiber",
-                    "4g",
-                    "5g",
-                    "wifi",
-                    "lan",
-                    "unknown"
-                ],
-                "title": "Connectivity"
-            },
-            "HTTPValidationError": {
-                "properties": {
-                    "detail": {
-                        "items": {
-                            "$ref": "#/components/schemas/ValidationError"
-                        },
-                        "type": "array",
-                        "title": "Detail"
-                    }
-                },
-                "type": "object",
-                "title": "HTTPValidationError"
-            },
-            "LifecycleState": {
-                "type": "string",
-                "enum": [
-                    "active",
-                    "decommissioned"
-                ],
-                "title": "LifecycleState"
-            },
-            "OwnershipClass": {
-                "type": "string",
-                "enum": [
-                    "government",
-                    "private",
-                    "ppp"
-                ],
-                "title": "OwnershipClass"
-            },
-            "Page_CameraRead_": {
-                "properties": {
-                    "items": {
-                        "items": {
-                            "$ref": "#/components/schemas/CameraRead"
-                        },
-                        "type": "array",
-                        "title": "Items"
-                    },
-                    "total": {
-                        "type": "integer",
-                        "title": "Total",
-                        "description": "Total rows matching the filter, ignoring pagination."
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "title": "Limit"
-                    },
-                    "offset": {
-                        "type": "integer",
-                        "title": "Offset"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "items",
-                    "total",
-                    "limit",
-                    "offset"
-                ],
-                "title": "Page[CameraRead]"
-            },
-            "Reachability": {
-                "type": "string",
-                "enum": [
-                    "public_cdn",
-                    "direct_ip",
-                    "lan_only"
-                ],
-                "title": "Reachability"
-            },
-            "SiteType": {
-                "type": "string",
-                "enum": [
-                    "traffic_junction",
-                    "godown",
-                    "pds_shop",
-                    "rto_checkpoint",
-                    "office",
-                    "hospital",
-                    "bus_depot",
-                    "border_checkpost",
-                    "public_space",
-                    "other"
-                ],
-                "title": "SiteType"
-            },
-            "SourceType": {
-                "type": "string",
-                "enum": [
-                    "csv",
-                    "manual",
-                    "api",
-                    "adapter"
-                ],
-                "title": "SourceType"
-            },
-            "StreamEndpointRead": {
-                "properties": {
-                    "id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Id"
-                    },
-                    "protocol": {
-                        "$ref": "#/components/schemas/StreamProtocol"
-                    },
-                    "url": {
-                        "type": "string",
-                        "title": "Url",
-                        "examples": [
-                            "rtsp://103.250.160.189:8554/stream/cam04"
-                        ]
-                    },
-                    "codec": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Codec",
-                        "examples": [
-                            "h264"
-                        ]
-                    },
-                    "resolution": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Resolution",
-                        "examples": [
-                            "1920x1080"
-                        ]
-                    },
-                    "is_primary": {
-                        "type": "boolean",
-                        "title": "Is Primary",
-                        "default": true
-                    },
-                    "reachability": {
-                        "$ref": "#/components/schemas/Reachability",
-                        "description": "public_cdn works on any network; direct_ip needs gateway ports open."
-                    },
-                    "requires_auth": {
-                        "type": "boolean",
-                        "title": "Requires Auth",
-                        "default": false
-                    },
-                    "verified_at": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Verified At"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "id",
-                    "protocol",
-                    "url",
-                    "reachability"
-                ],
-                "title": "StreamEndpointRead",
-                "description": "How Models 2-4 reach this camera. Credentials are omitted unless the caller\nholds the streams:credentials scope."
-            },
-            "StreamProtocol": {
-                "type": "string",
-                "enum": [
-                    "rtsp",
-                    "hls",
-                    "whep",
-                    "onvif",
-                    "snapshot"
-                ],
-                "title": "StreamProtocol"
-            },
-            "ValidationError": {
-                "properties": {
-                    "loc": {
-                        "items": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "integer"
-                                }
-                            ]
-                        },
-                        "type": "array",
-                        "title": "Location"
-                    },
-                    "msg": {
-                        "type": "string",
-                        "title": "Message"
-                    },
-                    "type": {
-                        "type": "string",
-                        "title": "Error Type"
-                    },
-                    "input": {
-                        "title": "Input"
-                    },
-                    "ctx": {
-                        "type": "object",
-                        "title": "Context"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "loc",
-                    "msg",
-                    "type"
-                ],
-                "title": "ValidationError"
-            }
-        }
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
     }
+  },
+  "info": {
+    "description": "Model 1 \u2014 Centralised CCTV Registry & GIS Foundation.",
+    "title": "Sentinel CCTV Registry",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/cameras": {
+      "get": {
+        "operationId": "list_cameras_api_v1_cameras_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CameraRead_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List and filter cameras",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/cameras/{camera_id}": {
+      "get": {
+        "operationId": "get_camera_api_v1_cameras__camera_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Camera",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/cameras/{camera_id}/streams": {
+      "get": {
+        "description": "Entry point for Models 2-4. Prefer the endpoint whose reachability matches your network: public_cdn works anywhere, direct_ip needs gateway ports open.",
+        "operationId": "get_camera_streams_api_v1_cameras__camera_id__streams_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StreamEndpointRead"
+                  },
+                  "title": "Response Get Camera Streams Api V1 Cameras  Camera Id  Streams Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream endpoints for this camera",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/onboarding/bulk": {
+      "post": {
+        "description": "Same validation and normalization as CSV upload \u2014 only the source differs.",
+        "operationId": "bulk_api_v1_onboarding_bulk_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/CameraCreate"
+                },
+                "title": "Payload",
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "API onboarding for departmental systems",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/import": {
+      "post": {
+        "operationId": "import_file_api_v1_onboarding_import_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_file_api_v1_onboarding_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit a validated file",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/preview": {
+      "post": {
+        "operationId": "preview_api_v1_onboarding_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preview_api_v1_onboarding_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate a file and report row-level results without writing",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/tiles/cameras/{z}/{x}/{y}.mvt": {
+      "get": {
+        "description": "Clustered counts below zoom 11, individual cameras at zoom 11 and above. Returns 204 when the tile contains no cameras.",
+        "operationId": "camera_tile_api_v1_tiles_cameras__z___x___y__mvt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "maximum": 22,
+              "minimum": 0,
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mapbox Vector Tile of cameras",
+        "tags": [
+          "tiles"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "system"
+        ]
+      }
+    }
+  }
 }
