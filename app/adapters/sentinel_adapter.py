@@ -13,6 +13,11 @@ from app.schemas.ingestion import RawCameraRecord
 # actually open. HLS is served by a password-gated CDN and works on any network;
 # RTSP and WHEP are served from a bare public IP on non-standard ports, so they only
 # work where the gateway allows those ports out.
+# Only used for the provenance label in source_ref. The dedupe key is resolved by
+# the department's field_mappings, so a catalogue naming its id differently still
+# onboards correctly -- this just keeps the trace label meaningful.
+_ID_KEYS = ("id", "camera_id", "cam_id", "camera_ref", "name")
+
 _PROTOCOL_KEYS: dict[str, tuple[StreamProtocol, Reachability, bool]] = {
     "hls": (StreamProtocol.HLS, Reachability.PUBLIC_CDN, True),
     "rtsp": (StreamProtocol.RTSP, Reachability.DIRECT_IP, False),
@@ -83,7 +88,14 @@ class SentinelAdapter:
         entries = await self._get_catalogue()
         records: list[RawCameraRecord] = []
         for entry in entries:
-            camera_id = entry.get("id")
+            camera_id = next(
+                (
+                    entry[key]
+                    for key in _ID_KEYS
+                    if entry.get(key) not in (None, "")
+                ),
+                None,
+            )
             payload = dict(entry)
             # Keys starting with "_" are skipped by FieldMappingResolver, so this rides
             # through the pipeline without polluting metadata. Plan 2 reads it in

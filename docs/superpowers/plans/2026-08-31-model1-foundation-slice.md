@@ -2292,6 +2292,13 @@ the strongest demo moment in Model 1.
 - Create: `app/adapters/sentinel_adapter.py`
 - Test: `tests/adapters/test_sentinel_adapter.py`
 
+**Three key names are hard-coded here and cannot be remapped by `field_mappings`:**
+`hls`, `rtsp` and `whep`, because `endpoints_for()` reads them before the resolver runs.
+Everything else — including which field is the camera id and which are the coordinates —
+is resolved from the department's config. If the real catalogue nests its streams (say
+`{"streams": {...}}` or a list of `{protocol, url}` objects), `endpoints_for()` needs a
+small shape adapter; the reachability policy itself does not change.
+
 - [ ] **Step 1: Capture a real catalogue sample**
 
 While signed in to the portal, save the catalogue as a fixture:
@@ -2308,7 +2315,11 @@ department's `field_mappings` config, so no adapter code changes when the shape 
 
 - [ ] **Step 2: Write the failing test**
 
-Create `tests/adapters/test_sentinel_adapter.py`:
+Create `tests/adapters/test_sentinel_adapter.py`. Note `httpx.AsyncBaseTransport` — the
+client is an `AsyncClient`, and although `MockTransport` subclasses both, the sync
+annotation would mislead anyone passing a real transport.
+
+Create the file:
 
 ```python
 from uuid import uuid4
@@ -2408,7 +2419,7 @@ class SentinelAdapter:
         self,
         catalogue_url: str,
         session_cookie: str | None = None,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.catalogue_url = catalogue_url
         self.session_cookie = session_cookie
@@ -2425,6 +2436,8 @@ class SentinelAdapter:
 
         if isinstance(body, list):
             return body
+        if not isinstance(body, dict):
+            raise ValueError(f"Unrecognised catalogue payload of type {type(body).__name__}")
         for key in ("cameras", "items", "data"):
             if isinstance(body.get(key), list):
                 return body[key]

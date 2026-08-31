@@ -61,3 +61,18 @@ async def test_catalogue_wrapped_in_an_object_is_also_accepted():
         catalogue_url="https://cctv.corp8.cloud/cameras.json", transport=transport
     )
     assert len(await adapter.fetch(uuid4())) == 1
+
+
+@pytest.mark.asyncio
+async def test_source_ref_survives_a_catalogue_that_names_its_id_differently():
+    """The catalogue's id key is not guaranteed to be literally `id`, and a
+    provenance label reading `sentinel:None` would be useless for tracing."""
+    catalogue = [{"camera_ref": "cam07", "lat": 23.02, "lon": 72.57}]
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json=catalogue))
+    adapter = SentinelAdapter(
+        catalogue_url="https://cctv.corp8.cloud/cameras.json", transport=transport
+    )
+
+    records = await adapter.fetch(uuid4())
+
+    assert records[0].source_ref == "sentinel:cam07"
