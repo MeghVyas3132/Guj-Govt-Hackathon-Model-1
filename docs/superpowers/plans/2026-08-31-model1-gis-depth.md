@@ -314,22 +314,22 @@ git commit -m "feat: persist stream endpoints and serve them from the real table
 Run:
 ```bash
 mkdir -p data
-curl -sL "https://raw.githubusercontent.com/datta07/INDIAN-SHAPEFILES/master/INDIA/india_district.geojson" \
-  -o /tmp/india_districts.geojson
+# State-scoped file: 7.9 MB and already Gujarat-only. (The India-wide
+# INDIA/india_district.geojson path in older docs now 404s; the repo was
+# reorganised and the equivalent INDIA_DISTRICTS.geojson is 77 MB.)
+curl -sL "https://raw.githubusercontent.com/datta07/INDIAN-SHAPEFILES/master/STATES/GUJARAT/GUJARAT_DISTRICTS.geojson" \
+  -o data/gujarat_districts.geojson
 python3 - <<'PY'
 import json
-src = json.load(open("/tmp/india_districts.geojson"))
-features = [
-    f for f in src["features"]
-    if (f["properties"].get("statename") or f["properties"].get("STATE") or "").upper().startswith("GUJARAT")
-]
-json.dump({"type": "FeatureCollection", "features": features},
-          open("data/gujarat_districts.geojson", "w"))
-print(f"{len(features)} districts written")
+src = json.load(open("data/gujarat_districts.geojson"))
+props = src["features"][0]["properties"]
+print("property keys:", sorted(props))
+assert all(f["properties"]["stname"] == "GUJARAT" for f in src["features"])
+print(f'{len(src["features"])} districts')
 PY
 ```
-Expected: roughly 33 districts. If the property names differ in the source file, print
-`src["features"][0]["properties"]` and adjust the filter key.
+Expected: **33 districts**, with keys `dtname` (name), `stname` (= `GUJARAT`) and
+`dtcode11` (2011 Census code).
 
 - [ ] **Step 2: Create `app/models/admin_boundary.py`**
 
@@ -377,6 +377,7 @@ from pathlib import Path
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import MultiPolygon, shape
+from sqlalchemy import delete
 
 from app.core.db import SessionLocal
 from app.models.admin_boundary import AdminBoundary
@@ -395,6 +396,11 @@ def _name(properties: dict) -> str:
 async def main() -> None:
     collection = json.loads(GEOJSON.read_text())
     async with SessionLocal() as session:
+        # Re-runnable: appending unconditionally would leave two copies of every
+        # district, and Plan 4 would then count every cell's coverage twice.
+        await session.execute(
+            delete(AdminBoundary).where(AdminBoundary.level == "district")
+        )
         for feature in collection["features"]:
             geometry = shape(feature["geometry"])
             if geometry.geom_type == "Polygon":
@@ -403,6 +409,9 @@ async def main() -> None:
                 AdminBoundary(
                     level="district",
                     name=_name(feature["properties"]),
+                    # Census names use 2011 spellings ("Ahmadabad", "Kachchh"), so the
+                    # census code is the stable join key, not the display name.
+                    code=feature["properties"].get("dtcode11"),
                     geom=from_shape(geometry, srid=4326),
                 )
             )
