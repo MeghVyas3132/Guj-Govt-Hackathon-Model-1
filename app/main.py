@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
@@ -15,6 +16,16 @@ def create_app() -> FastAPI:
     @application.get("/healthz", tags=["system"])
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    # The map is a separate origin from the API, so the browser preflights every
+    # tile request. Without this the canvas stays empty and the only clue is a
+    # CORS error in the console.
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     from app.api.v1.router import api_router
 
