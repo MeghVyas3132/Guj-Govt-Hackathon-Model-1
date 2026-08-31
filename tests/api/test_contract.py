@@ -19,8 +19,10 @@ async def test_openapi_exposes_versioned_camera_routes(client):
 
 
 @pytest.mark.asyncio
-async def test_list_cameras_returns_a_page(client):
-    response = await client.get("/api/v1/cameras")
+async def test_list_cameras_returns_a_page(api_client):
+    # api_client (not the bare `client` fixture) overrides get_session with the
+    # testcontainer, so this does not silently query a developer's local database.
+    response = await api_client.get("/api/v1/cameras")
     assert response.status_code == 200
     body = response.json()
     assert {"items", "total", "limit", "offset"} <= body.keys()
