@@ -1326,7 +1326,7 @@ Replace the component body so the tile URL rebuilds when filters change:
 ```tsx
 "use client";
 
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 
@@ -1422,6 +1422,9 @@ Add to `docker-compose.yml`:
 ```
 
 - [ ] **Step 3: Install the PMTiles protocol in the client**
+
+Also bundle glyphs alongside the PMTiles basemap and point the style's `glyphs` key at
+them, or every symbol layer silently renders nothing when the venue network is down.
 
 Run: `cd web && npm install pmtiles`
 

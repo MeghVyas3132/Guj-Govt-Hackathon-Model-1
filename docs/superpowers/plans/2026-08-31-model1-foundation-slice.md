@@ -6,7 +6,7 @@
 
 **Architecture:** FastAPI with strict layering (routers → services → repositories). Every onboarding path constructs a `RawCameraRecord` and calls one `IngestionService.ingest()` function, so validation and normalization cannot diverge by source. Per-department `field_mappings` JSONB config translates foreign vocabularies to canonical enums, making new-department onboarding a config row rather than a code change. Camera geometry is `GEOGRAPHY(POINT,4326)` in PostGIS, served to the browser as Mapbox Vector Tiles via `ST_AsMVT`.
 
-**Tech Stack:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async) + GeoAlchemy2, Alembic, PostgreSQL 16 + PostGIS 3.4, Redis + arq, Next.js 15 (App Router), MapLibre GL JS, pytest + pytest-asyncio + testcontainers.
+**Tech Stack:** Python 3.12+, FastAPI, SQLAlchemy 2.0 (async) + GeoAlchemy2, Alembic, PostgreSQL 16 + PostGIS 3.4, Redis + arq, Next.js 16 (App Router, Turbopack), MapLibre GL JS **v5**, pytest + pytest-asyncio + testcontainers.
 
 **Reference spec:** `docs/superpowers/specs/2026-08-31-cctv-registry-gis-design.md`
 
@@ -2716,16 +2716,32 @@ git commit -m "feat: PostGIS MVT tile endpoint with zoom-dependent clustering"
 
 Run:
 ```bash
-npx create-next-app@latest web --typescript --app --tailwind --eslint --no-src-dir --import-alias "@/*"
-cd web && npm install maplibre-gl
+npx create-next-app@latest web --yes --typescript --app --tailwind --eslint --no-src-dir --import-alias "@/*"
+cd web && npm install maplibre-gl@^5
 ```
+
+**Pin `maplibre-gl@^5`, not v6.** Under Turbopack (the Next 16 default) maplibre-gl v6
+renders the basemap but **never loads a single source, with a completely silent console**.
+Its `getWorkerUrl()` early-returns `""` when `import.meta.url` is not `http(s)`, and
+Turbopack rewrites that expression — so `new Worker("")` loads the page's own HTML as the
+worker and dies without firing an error event. Turbopack also statically rewrites the
+worker path to the library itself, so production builds break the same way. v5 inlines its
+worker as a blob and is bundler-independent.
+
+```bash
+npm install maplibre-gl@^5
+```
+
+Both v5 and v6 declare **named exports only**, so `import maplibregl from "maplibre-gl"`
+fails typecheck (TS1192). Use `import * as maplibregl from "maplibre-gl"`.
+
 
 - [ ] **Step 2: Create `web/components/CameraMap.tsx`**
 
 ```tsx
 "use client";
 
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 
@@ -2759,6 +2775,8 @@ export function CameraMap() {
           },
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
+        // Required: a symbol layer renders nothing without glyphs, silently.
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       },
       center: [72.5714, 23.0225],
       zoom: 10,
@@ -2794,7 +2812,10 @@ export function CameraMap() {
         type: "symbol",
         source: "cameras",
         "source-layer": "camera_clusters",
-        layout: { "text-field": ["get", "camera_count"], "text-size": 12 },
+        layout: {
+          "text-field": ["to-string", ["get", "camera_count"]],
+          "text-size": 12,
+        },
         paint: { "text-color": "#ffffff" },
       });
 
