@@ -64,7 +64,7 @@ async def test_an_ahmedabad_landmark_resolves_without_naming_the_city(
 async def test_an_unrecognised_place_returns_none_rather_than_guessing(
     session, districts
 ):
-    assert await DistrictGeocoder(session).locate("23 kheram") is None
+    assert await DistrictGeocoder(session).locate("20 Mohanpura") is None
     assert await DistrictGeocoder(session).locate("") is None
     assert await DistrictGeocoder(session).locate(None) is None
 
@@ -98,3 +98,22 @@ async def test_a_longer_alias_wins_over_a_shorter_substring(session, districts):
     # Gir Somnath is not in this fixture, so this must decline rather than
     # fall through to a wrong district.
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_the_catalogue_names_that_needed_looking_up_now_resolve(
+    session, districts
+):
+    """Regression for the eight names the first pass could not place. Seven were
+    resolved by lookup; Mohanpura has no clear Gujarat match and must still decline."""
+    geocoder = DistrictGeocoder(session)
+
+    assert (await geocoder.locate("03 O.N.G.C. Office")).district_name == "Ahmadabad"
+    assert (await geocoder.locate("14 Delight RLVD")).district_name == "Ahmadabad"
+    assert (await geocoder.locate("15 Suvidha park")).district_name == "Ahmadabad"
+    assert (await geocoder.locate("23 kheram")).district_name == "Navsari"
+    assert (await geocoder.locate("25 dhanori")).district_name == "Navsari"
+    assert (await geocoder.locate("26 TANKAL")).district_name == "Navsari"
+
+    # Still unresolved, and must stay that way rather than being guessed.
+    assert await geocoder.locate("20 Mohanpura") is None

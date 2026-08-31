@@ -59,6 +59,19 @@ PLACE_ALIASES: dict[str, str] = {
     "cn vidhyalaya": "Ahmadabad",
     "vastrapur": "Ahmadabad",
     "sarkhej": "Ahmadabad",
+    # Resolved from the live Sentinel catalogue. Each was looked up rather than
+    # inferred from position in the list, since a wrong district puts a police
+    # camera in the wrong place on the map.
+    "o n g c": "Ahmadabad",  # ONGC office, Chandkheda, Ahmedabad
+    "ongc": "Ahmadabad",
+    "delight": "Ahmadabad",  # Delight, Ambawadi, Ahmedabad
+    "suvidha park": "Ahmadabad",  # Suvidha Park, Shahibagh, Ahmedabad
+    "mervada": "Banas Kantha",  # Morvada, Vav taluka; the "BK" prefix agrees
+    "morvada": "Banas Kantha",
+    "khergam": "Navsari",  # two Khergams exist, both in Navsari
+    "kheram": "Navsari",
+    "dhanori": "Navsari",  # Gandevi taluka -- the same taluka as cam19
+    "tankal": "Navsari",  # Chikhli taluka
 }
 
 
