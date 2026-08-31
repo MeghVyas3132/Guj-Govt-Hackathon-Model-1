@@ -65,3 +65,23 @@ async def seeded_department(session):
     )
     await session.commit()
     return dept.id
+
+
+@pytest.fixture
+async def seeded_department_obj(session):
+    """Like `seeded_department` but hands back the ORM object, not just its id.
+
+    IngestionService.ingest() takes a Department (it reads `.code` to mint the next
+    camera_uid), so tests that call the service directly rather than through the API
+    need the instance. The empty mapping config is deliberate: the Sentinel adapter
+    payload already uses canonical key names.
+    """
+    from app.models.department import Department
+    from app.models.field_mapping import FieldMapping
+
+    dept = Department(code="SEN", name="Sentinel Sandbox")
+    session.add(dept)
+    await session.flush()
+    session.add(FieldMapping(department_id=dept.id, version=1, config={}))
+    await session.commit()
+    return dept

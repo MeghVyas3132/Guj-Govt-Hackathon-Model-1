@@ -6,46 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.enums import Reachability, StreamProtocol
 from app.models.camera import Camera
+from app.models.stream_endpoint import StreamEndpoint
 from app.schemas.camera import CameraRead, StreamEndpointRead
 from app.schemas.common import Page
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
-
-# Still stubbed: Plan 2 replaces these with real stream_endpoints rows.
-_STUB_STREAMS = [
-    StreamEndpointRead(
-        id=UUID("00000000-0000-0000-0000-0000000000b1"),
-        protocol=StreamProtocol.HLS,
-        url="https://cctv.corp8.cloud/cam04/index.m3u8",
-        codec="h264",
-        resolution="1920x1080",
-        is_primary=True,
-        reachability=Reachability.PUBLIC_CDN,
-        requires_auth=True,
-    ),
-    StreamEndpointRead(
-        id=UUID("00000000-0000-0000-0000-0000000000b2"),
-        protocol=StreamProtocol.RTSP,
-        url="rtsp://103.250.160.189:8554/stream/cam04",
-        codec="h264",
-        resolution="1920x1080",
-        is_primary=False,
-        reachability=Reachability.DIRECT_IP,
-        requires_auth=False,
-    ),
-    StreamEndpointRead(
-        id=UUID("00000000-0000-0000-0000-0000000000b3"),
-        protocol=StreamProtocol.WHEP,
-        url="http://103.250.160.189:8889/stream/cam04/whep",
-        codec="h264",
-        resolution="1920x1080",
-        is_primary=False,
-        reachability=Reachability.DIRECT_IP,
-        requires_auth=False,
-    ),
-]
 
 
 def _to_read(row: Camera) -> CameraRead:
@@ -107,5 +73,20 @@ async def get_camera(
         "your network: public_cdn works anywhere, direct_ip needs gateway ports open."
     ),
 )
-async def get_camera_streams(camera_id: UUID) -> list[StreamEndpointRead]:
-    return _STUB_STREAMS
+async def get_camera_streams(
+    camera_id: UUID, session: AsyncSession = Depends(get_session)
+) -> list[StreamEndpointRead]:
+    # Primary first, so a client that just takes the head of the list gets the
+    # endpoint the source designated as canonical rather than an arbitrary row.
+    rows = (
+        (
+            await session.execute(
+                select(StreamEndpoint)
+                .where(StreamEndpoint.camera_id == camera_id)
+                .order_by(StreamEndpoint.is_primary.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [StreamEndpointRead.model_validate(row) for row in rows]

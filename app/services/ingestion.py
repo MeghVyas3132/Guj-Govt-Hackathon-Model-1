@@ -4,12 +4,13 @@ from typing import Any, Literal
 from geoalchemy2.elements import WKBElement, WKTElement
 from geoalchemy2.shape import to_shape
 from shapely import wkt as shapely_wkt
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.camera import Camera
 from app.models.department import Department
 from app.models.field_mapping import FieldMapping
+from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.ingestion import IngestReport, RawCameraRecord, RowResult
 from app.services.normalization import FieldMappingResolver
@@ -152,6 +153,34 @@ class IngestionService:
             await self.session.commit()
         return report
 
+    async def _sync_endpoints(
+        self, camera: Camera, endpoints: list[dict[str, Any]]
+    ) -> None:
+        """Replace rather than merge.
+
+        The source catalogue is authoritative about how a camera can be reached, so a
+        URL that disappeared upstream has to disappear here too. Merging would leave
+        the registry handing Models 2-4 an endpoint that no longer exists, which is
+        worse than handing them none.
+        """
+        await self.session.execute(
+            delete(StreamEndpoint).where(StreamEndpoint.camera_id == camera.id)
+        )
+        for endpoint in endpoints:
+            self.session.add(
+                StreamEndpoint(
+                    camera_id=camera.id,
+                    protocol=endpoint["protocol"],
+                    url=endpoint["url"],
+                    codec=endpoint.get("codec"),
+                    resolution=endpoint.get("resolution"),
+                    is_primary=endpoint.get("is_primary", False),
+                    reachability=endpoint.get("reachability", "direct_ip"),
+                    requires_auth=endpoint.get("requires_auth", False),
+                    credential_ref=endpoint.get("credential_ref"),
+                )
+            )
+
     async def _persist(
         self,
         values: dict[str, Any],
@@ -163,6 +192,13 @@ class IngestionService:
         external_id = str(values["external_camera_id"])
         wkt = f"SRID=4326;POINT({values['longitude']} {values['latitude']})"
         status = values.get("status")
+
+        # Absent key and empty list mean different things and must not be conflated.
+        # No key at all (CSV, manual form, REST POST) means "this source has nothing
+        # to say about stream endpoints", so existing rows are left alone. A present
+        # but empty list is a catalogue asserting "this camera has none any more",
+        # which must clear them.
+        endpoints = record.payload.get("_stream_endpoints")
 
         camera = await self.cameras.get_by_external_id(department.id, external_id)
         if camera is None:
@@ -182,25 +218,36 @@ class IngestionService:
                 setattr(camera, key, values[key])
             self.cameras.add(camera)
             await self.session.flush()
-            return "created"
-
-        changed = False
-        if _point_moved(camera.location, float(values["longitude"]), float(values["latitude"])):
-            camera.location = wkt
-            changed = True
-        for key in _WRITABLE & values.keys():
-            if getattr(camera, key) != values[key]:
-                setattr(camera, key, values[key])
+            outcome = "created"
+        else:
+            changed = False
+            if _point_moved(
+                camera.location, float(values["longitude"]), float(values["latitude"])
+            ):
+                camera.location = wkt
                 changed = True
-        if metadata and camera.metadata_ != {**camera.metadata_, **metadata}:
-            camera.metadata_ = {**camera.metadata_, **metadata}
-            changed = True
-        if status is not None and camera.current_status != str(status):
-            camera.current_status = str(status)
-            camera.status_since = datetime.now(UTC)
-            changed = True
+            for key in _WRITABLE & values.keys():
+                if getattr(camera, key) != values[key]:
+                    setattr(camera, key, values[key])
+                    changed = True
+            if metadata and camera.metadata_ != {**camera.metadata_, **metadata}:
+                camera.metadata_ = {**camera.metadata_, **metadata}
+                changed = True
+            if status is not None and camera.current_status != str(status):
+                camera.current_status = str(status)
+                camera.status_since = datetime.now(UTC)
+                changed = True
 
-        if changed:
+            if changed:
+                await self.session.flush()
+                outcome = "updated"
+            else:
+                outcome = "skipped"
+
+        # Deliberately also on "skipped". A camera's core fields can be identical
+        # while its stream URLs have moved to a new host; syncing only on
+        # created/updated would let every re-sync silently keep serving a dead URL.
+        if endpoints is not None:
+            await self._sync_endpoints(camera, endpoints)
             await self.session.flush()
-            return "updated"
-        return "skipped"
+        return outcome
