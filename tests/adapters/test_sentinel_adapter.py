@@ -76,3 +76,25 @@ async def test_source_ref_survives_a_catalogue_that_names_its_id_differently():
     records = await adapter.fetch(uuid4())
 
     assert records[0].source_ref == "sentinel:cam07"
+
+
+@pytest.mark.asyncio
+async def test_raw_stream_urls_do_not_also_land_in_metadata():
+    """Stream URLs live authoritatively in stream_endpoints. Leaving the raw hls/rtsp/
+    whep keys in the payload would file a second copy into cameras.metadata via normal
+    passthrough, and that copy goes stale silently on the next re-sync."""
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json=CATALOGUE))
+    adapter = SentinelAdapter(
+        catalogue_url="https://cctv.corp8.cloud/cameras.json", transport=transport
+    )
+
+    payload = (await adapter.fetch(uuid4()))[0].payload
+
+    assert "hls" not in payload
+    assert "rtsp" not in payload
+    assert "whep" not in payload
+    # ...but they are present, once, on the authoritative channel.
+    assert {e["protocol"] for e in payload["_stream_endpoints"]} == {"hls", "rtsp", "whep"}
+    # Non-stream fields still pass through for field_mappings to resolve.
+    assert payload["id"] == "cam04"
+    assert payload["lat"] == 23.0225

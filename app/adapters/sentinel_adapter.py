@@ -96,11 +96,15 @@ class SentinelAdapter:
                 ),
                 None,
             )
-            payload = dict(entry)
+            endpoints = self.endpoints_for(entry)
+            # Drop the raw stream keys: they are represented authoritatively in
+            # stream_endpoints now, and leaving them in the payload would file a second
+            # copy into cameras.metadata via passthrough that goes stale on re-sync.
+            payload = {k: v for k, v in entry.items() if k not in _PROTOCOL_KEYS}
             # Keys starting with "_" are skipped by FieldMappingResolver, so this rides
-            # through the pipeline without polluting metadata. Plan 2 reads it in
-            # IngestionService._persist to write stream_endpoints rows.
-            payload["_stream_endpoints"] = self.endpoints_for(entry)
+            # through the pipeline without polluting metadata. IngestionService._persist
+            # reads it to write stream_endpoints rows.
+            payload["_stream_endpoints"] = endpoints
             records.append(
                 RawCameraRecord(
                     payload=payload,

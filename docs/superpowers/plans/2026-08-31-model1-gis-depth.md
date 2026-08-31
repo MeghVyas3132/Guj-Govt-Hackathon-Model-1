@@ -202,10 +202,21 @@ before each `return`. At the top of `_persist` add:
 Then immediately before `return "created"`:
 
 ```python
-        if endpoints:
+        if endpoints is not None:
             await self._sync_endpoints(camera, endpoints)
             await self.session.flush()
 ```
+
+`is not None`, not a truthiness check. `if endpoints:` conflates "the payload has no
+`_stream_endpoints` key at all" (CSV, manual and REST onboarding — leave existing endpoints
+alone) with "the catalogue returned an empty list" (every URL vanished upstream — clear
+them). The truthy version can never clear endpoints, so a camera that loses all its streams
+would keep serving dead URLs forever.
+
+Rather than repeating this before three separate `return` statements, restructure `_persist`
+to a single exit point and sync once after the outcome is decided. The sync must run on
+`skipped` as well as `created`/`updated`: a camera's core fields can be identical while its
+stream URLs have moved.
 
 And immediately before `return "updated"` and `return "skipped"`, add the same three lines.
 Endpoint syncing must run even on a `skipped` outcome, because a camera's core fields can be
@@ -262,6 +273,21 @@ async def get_camera_streams(
     )
     return [StreamEndpointRead.model_validate(row) for row in rows]
 ```
+
+- [ ] **Step 6b: Seed the contract test's reference camera**
+
+`tests/api/test_contract.py` asserts three specific protocols for camera
+`00000000-…-0001`. That passed against `_STUB_STREAMS`; the moment the route reads the
+database it returns `200 []` and fails. Do **not** edit the contract file — that file
+passing unchanged is the signal the published shape did not drift. Instead add
+`tests/api/conftest.py` with an autouse fixture that seeds the reference camera for tests
+whose closure includes the bare `client` fixture (check `request.fixturenames`, so tests
+asserting an empty registry are untouched). Seed it through
+`SentinelAdapter.endpoints_for()` into `IngestionService._sync_endpoints()` — production
+mapping, production writer — so the values under test are the real ones rather than a
+second hand-maintained copy.
+
+Every later task that turns a stubbed route into a database-backed one hits this same wall.
 
 - [ ] **Step 7: Run the full suite**
 
