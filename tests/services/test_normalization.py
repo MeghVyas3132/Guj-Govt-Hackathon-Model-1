@@ -89,3 +89,32 @@ def test_private_underscore_keys_are_skipped_entirely():
     assert "_stream_endpoints" not in result.metadata
     assert "_stream_endpoints" not in result.values
     assert result.metadata == {}
+
+
+def test_dms_accepts_symbol_delimited_form_from_excel_and_gis_exports():
+    config = {**AMC_CONFIG, "coordinate_format": "dms"}
+    result = FieldMappingResolver(config).resolve(
+        {"cam_id": "A-1", "lat": "23°01'21.0\" N", "lng": "72°34'17.0\" E"}
+    )
+    assert round(result.values["latitude"], 4) == 23.0225
+    assert round(result.values["longitude"], 4) == 72.5714
+
+
+def test_symbol_delimited_dms_keeps_the_hemisphere_sign():
+    config = {**AMC_CONFIG, "coordinate_format": "dms"}
+    result = FieldMappingResolver(config).resolve(
+        {"cam_id": "A-1", "lat": "23°01'21.0\" S", "lng": "72°34'17.0\" W"}
+    )
+    assert round(result.values["latitude"], 4) == -23.0225
+    assert round(result.values["longitude"], 4) == -72.5714
+
+
+def test_unparseable_dms_warns_and_leaves_the_raw_value_for_the_validator():
+    """A bad coordinate must become a row error, never an exception that kills the batch."""
+    config = {**AMC_CONFIG, "coordinate_format": "dms"}
+    result = FieldMappingResolver(config).resolve(
+        {"cam_id": "A-1", "lat": "somewhere near the bridge", "lng": "72 34 17.0 E"}
+    )
+    assert result.values["latitude"] == "somewhere near the bridge"
+    assert any("latitude" in w for w in result.warnings)
+    assert round(result.values["longitude"], 4) == 72.5714

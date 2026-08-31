@@ -1178,8 +1178,10 @@ from typing import Any
 
 from app.core.enums import SOFT_ENUMS
 
+# The separator before the hemisphere must exclude NSEW, or a greedy class swallows
+# the letter and every southern/western coordinate silently comes back positive.
 _DMS = re.compile(
-    r"^\s*(\d+)[^\d]+(\d+)[^\d]+([\d.]+)\s*([NSEW])?\s*$", re.IGNORECASE
+    r"^\s*(\d+)[^\d]+(\d+)[^\d]+([\d.]+)[^\dNSEWnsew]*([NSEW])?\s*$", re.IGNORECASE
 )
 
 
@@ -1257,8 +1259,19 @@ class FieldMappingResolver:
 
         if self.coordinate_format == "dms":
             for coord in ("latitude", "longitude"):
-                if isinstance(result.values.get(coord), str):
-                    result.values[coord] = _parse_dms(result.values[coord])
+                raw_coord = result.values.get(coord)
+                if not isinstance(raw_coord, str):
+                    continue
+                try:
+                    result.values[coord] = _parse_dms(raw_coord)
+                except ValueError:
+                    # Leave the raw value in place so CameraValidator reports it as an
+                    # invalid_coordinate row error. One unparseable cell must not raise
+                    # out of resolve() and abort the whole import batch.
+                    result.warnings.append(
+                        f"Could not parse {coord} {raw_coord!r} as "
+                        "degrees-minutes-seconds; left for validation."
+                    )
 
         return result
 
@@ -1274,7 +1287,7 @@ _KNOWN_CANONICAL = {
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `pytest tests/services/test_normalization.py -v`
-Expected: 7 passed
+Expected: 12 passed
 
 - [ ] **Step 5: Commit**
 

@@ -4,7 +4,11 @@ from typing import Any
 
 from app.core.enums import SOFT_ENUMS
 
-_DMS = re.compile(r"^\s*(\d+)[^\d]+(\d+)[^\d]+([\d.]+)\s*([NSEW])?\s*$", re.IGNORECASE)
+# The separator before the hemisphere must exclude NSEW, or a greedy class swallows
+# the letter and every southern/western coordinate silently comes back positive.
+_DMS = re.compile(
+    r"^\s*(\d+)[^\d]+(\d+)[^\d]+([\d.]+)[^\dNSEWnsew]*([NSEW])?\s*$", re.IGNORECASE
+)
 
 # Canonical column names a department may already use verbatim. Anything not here and not
 # in SOFT_ENUMS is department-specific and belongs in metadata.
@@ -106,7 +110,18 @@ class FieldMappingResolver:
 
         if self.coordinate_format == "dms":
             for coord in ("latitude", "longitude"):
-                if isinstance(result.values.get(coord), str):
-                    result.values[coord] = _parse_dms(result.values[coord])
+                raw_coord = result.values.get(coord)
+                if not isinstance(raw_coord, str):
+                    continue
+                try:
+                    result.values[coord] = _parse_dms(raw_coord)
+                except ValueError:
+                    # Leave the raw value in place so CameraValidator reports it as an
+                    # invalid_coordinate row error. One unparseable cell must not raise
+                    # out of resolve() and abort the whole import batch.
+                    result.warnings.append(
+                        f"Could not parse {coord} {raw_coord!r} as "
+                        "degrees-minutes-seconds; left for validation."
+                    )
 
         return result
