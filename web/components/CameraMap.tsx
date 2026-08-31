@@ -7,10 +7,14 @@ import {
   type ExpressionSpecification,
   Map as MapLibreMap,
   NavigationControl,
-  Popup,
+  type VectorTileSource,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { CameraDrawer, type SelectedCamera } from "@/components/CameraDrawer";
+import { FilterPanel } from "@/components/FilterPanel";
+import { EMPTY_FILTERS, type Filters, toQueryString } from "@/lib/filters";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -28,20 +32,42 @@ const STATUS_COLOURS: ExpressionSpecification = [
   "#64748b",
 ];
 
+function tileUrl(query: string): string {
+  return `${API}/api/v1/tiles/cameras/{z}/{x}/{y}.mvt${query ? `?${query}` : ""}`;
+}
+
 export function CameraMap() {
   const container = useRef<HTMLDivElement>(null);
+  // The map lives in a ref, not state: it is a mutable imperative object and
+  // re-rendering must never rebuild it. `styleReady` is the state flag the effects
+  // below wait on, because getSource() returns undefined until the style has loaded.
+  const map = useRef<MapLibreMap | null>(null);
+  const [styleReady, setStyleReady] = useState(false);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [selected, setSelected] = useState<SelectedCamera | null>(null);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+
+  const query = useMemo(() => toQueryString(filters), [filters]);
+
+  // Debounced, because `q` changes on every keystroke and each change re-requests
+  // every visible tile. The chips feel instant at 250ms; the search box stops
+  // firing a round of tile requests per character.
+  const [appliedQuery, setAppliedQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedQuery(query), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
-    if (!container.current) return;
+    if (!container.current || map.current) return;
 
-    const map = new MapLibreMap({
+    const instance = new MapLibreMap({
       container: container.current,
       style: {
         version: 8,
         // A symbol layer draws nothing without a glyph source, so without this the
         // cluster counts would silently never appear. fonts.openmaptiles.org serves a
-        // PBF variant this MapLibre cannot parse ("Unimplemented type: 4"); Plan 2
-        // replaces this with glyphs bundled alongside the offline PMTiles basemap.
+        // PBF variant this MapLibre cannot parse ("Unimplemented type: 4").
         glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
           osm: {
@@ -56,13 +82,14 @@ export function CameraMap() {
       center: [72.5714, 23.0225],
       zoom: 12,
     });
+    map.current = instance;
 
-    map.addControl(new NavigationControl(), "top-right");
+    instance.addControl(new NavigationControl(), "top-right");
 
-    map.on("load", () => {
-      map.addSource("cameras", {
+    instance.on("load", () => {
+      instance.addSource("cameras", {
         type: "vector",
-        tiles: [`${API}/api/v1/tiles/cameras/{z}/{x}/{y}.mvt`],
+        tiles: [tileUrl("")],
         minzoom: 0,
         maxzoom: 22,
       });
@@ -70,7 +97,7 @@ export function CameraMap() {
       // app/services/tiles.py switches the MVT layer name by zoom: `camera_clusters`
       // below z11, `cameras` at z11 and above. Both layers read the one source, and
       // whichever layer the tile actually carries is the one that draws.
-      map.addLayer({
+      instance.addLayer({
         id: "camera-clusters",
         type: "circle",
         source: "cameras",
@@ -94,7 +121,7 @@ export function CameraMap() {
         },
       });
 
-      map.addLayer({
+      instance.addLayer({
         id: "cluster-count",
         type: "symbol",
         source: "cameras",
@@ -108,7 +135,7 @@ export function CameraMap() {
         paint: { "text-color": "#ffffff" },
       });
 
-      map.addLayer({
+      instance.addLayer({
         id: "camera-points",
         type: "circle",
         source: "cameras",
@@ -121,29 +148,68 @@ export function CameraMap() {
         },
       });
 
-      map.on("click", "camera-points", (event) => {
+      // Opens the drawer rather than a popup: the popup could only show what the
+      // tile already carries, and the useful answer -- how do I actually open this
+      // stream -- needs a fetch.
+      instance.on("click", "camera-points", (event) => {
         const feature = event.features?.[0];
         if (!feature) return;
-        const { camera_uid, status, camera_type } = feature.properties as Record<
+        const { id, camera_uid, status, camera_type } = feature.properties as Record<
           string,
           string
         >;
-        new Popup()
-          .setLngLat(event.lngLat)
-          .setHTML(`<strong>${camera_uid}</strong><br/>${camera_type} · ${status}`)
-          .addTo(map);
+        setSelected({ id, camera_uid, status, camera_type });
       });
 
-      map.on("mouseenter", "camera-points", () => {
-        map.getCanvas().style.cursor = "pointer";
+      instance.on("mouseenter", "camera-points", () => {
+        instance.getCanvas().style.cursor = "pointer";
       });
-      map.on("mouseleave", "camera-points", () => {
-        map.getCanvas().style.cursor = "";
+      instance.on("mouseleave", "camera-points", () => {
+        instance.getCanvas().style.cursor = "";
       });
+
+      setStyleReady(true);
     });
 
-    return () => map.remove();
+    return () => {
+      instance.remove();
+      map.current = null;
+      setStyleReady(false);
+    };
   }, []);
 
-  return <div ref={container} data-testid="camera-map" className="h-screen w-full" />;
+  // Rebuild the source's tile URL when the filter changes. setTiles() drops the
+  // source's cached tiles and re-requests them, so the markers on screen always
+  // came from the current filter rather than a stale response.
+  useEffect(() => {
+    if (!styleReady) return;
+    const source = map.current?.getSource("cameras") as VectorTileSource | undefined;
+    source?.setTiles([tileUrl(appliedQuery)]);
+  }, [appliedQuery, styleReady]);
+
+  // The same query string against the list endpoint. It is the shared CameraFilter on
+  // the server, so this count and the markers cannot disagree about what matches.
+  useEffect(() => {
+    let cancelled = false;
+    const suffix = appliedQuery ? `&${appliedQuery}` : "";
+    fetch(`${API}/api/v1/cameras?limit=1${suffix}`)
+      .then((r) => r.json())
+      .then((page) => {
+        if (!cancelled) setMatchCount(page.total ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setMatchCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedQuery]);
+
+  return (
+    <div className="relative h-screen w-full">
+      <div ref={container} data-testid="camera-map" className="h-full w-full" />
+      <FilterPanel filters={filters} onChange={setFilters} matchCount={matchCount} />
+      <CameraDrawer camera={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
 }
