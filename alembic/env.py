@@ -18,7 +18,13 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.core.config import settings
-from app.models import camera, department, field_mapping, stream_endpoint  # noqa: F401
+from app.models import (  # noqa: F401
+    admin_boundary,
+    camera,
+    department,
+    field_mapping,
+    stream_endpoint,
+)
 from app.models.base import Base
 
 config.set_main_option("sqlalchemy.url", settings.database_url)

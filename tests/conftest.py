@@ -5,7 +5,13 @@ from testcontainers.community.postgres import PostgresContainer
 # Import every model so Base.metadata is complete before create_all, whatever the
 # test module happens to import. Without this, a test module that exercises the API
 # without importing the ORM models gets an empty schema.
-from app.models import camera, department, field_mapping, stream_endpoint  # noqa: F401
+from app.models import (  # noqa: F401
+    admin_boundary,
+    camera,
+    department,
+    field_mapping,
+    stream_endpoint,
+)
 from app.models.base import Base
 
 
