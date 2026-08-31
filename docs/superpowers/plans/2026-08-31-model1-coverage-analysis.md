@@ -318,7 +318,9 @@ class CoverageCell(Base, UUIDMixin):
     run_id: Mapped[UUID] = mapped_column(
         ForeignKey("coverage_runs.id", ondelete="CASCADE")
     )
-    geom: Mapped[Any] = mapped_column(Geography(geometry_type="POLYGON", srid=4326))
+    geom: Mapped[Any] = mapped_column(
+        Geography(geometry_type="POLYGON", srid=4326, spatial_index=False)
+    )
     installed_fraction: Mapped[float] = mapped_column(Float, default=0.0)
     effective_fraction: Mapped[float] = mapped_column(Float, default=0.0)
     classification: Mapped[str] = mapped_column(String(16), default="gap")

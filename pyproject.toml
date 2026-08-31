@@ -33,3 +33,19 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# Pinned explicitly: ruff's default set varies by version, and an unpinned
+# config means two developers on different ruff versions see different errors.
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.ruff.lint.isort]
+# The local alembic/ directory makes ruff infer the alembic library as first-party.
+known-third-party = ["alembic"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic files follow alembic's conventions, not ours. env.py must import models
+# after context setup (E402); a migration with no operations legitimately leaves
+# sa/op/geoalchemy2 unused (F401).
+"alembic/env.py" = ["E402"]
+"alembic/versions/*" = ["E501", "F401", "I001"]

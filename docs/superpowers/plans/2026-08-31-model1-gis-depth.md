@@ -329,7 +329,9 @@ class AdminBoundary(Base, UUIDMixin, TimestampMixin):
         ForeignKey("admin_boundaries.id"), nullable=True
     )
     population: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    geom: Mapped[Any] = mapped_column(Geography(geometry_type="MULTIPOLYGON", srid=4326))
+    geom: Mapped[Any] = mapped_column(
+        Geography(geometry_type="MULTIPOLYGON", srid=4326, spatial_index=False)
+    )
 ```
 
 - [ ] **Step 3: Generate and run the migration**
