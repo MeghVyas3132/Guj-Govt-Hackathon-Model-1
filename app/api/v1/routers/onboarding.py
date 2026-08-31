@@ -57,6 +57,23 @@ async def import_file(
     return await _run_csv(session, department_id, file, "commit")
 
 
+def _api_payload(item: CameraCreate) -> dict:
+    """Flatten one CameraCreate into the flat dict shape the resolver expects.
+
+    department_id and operator_department_id are routing, not camera attributes — the
+    department is already the query parameter — so they are dropped rather than left to
+    fall through into metadata. The caller's own metadata is merged flat, because the
+    resolver's passthrough is what puts unmapped keys into metadata; nesting it would
+    store metadata inside metadata. Real columns win a name collision.
+    """
+    payload = item.model_dump(mode="json", exclude_none=True)
+    payload.pop("department_id", None)
+    payload.pop("operator_department_id", None)
+    for key, value in (payload.pop("metadata", None) or {}).items():
+        payload.setdefault(key, value)
+    return payload
+
+
 @router.post(
     "/bulk",
     response_model=IngestReport,
@@ -71,7 +88,7 @@ async def bulk(
     department = await _department(session, department_id)
     records = [
         RawCameraRecord(
-            payload=item.model_dump(mode="json", exclude_none=True),
+            payload=_api_payload(item),
             department_id=department_id,
             source_type=SourceType.API,
         )
