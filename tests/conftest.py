@@ -11,6 +11,7 @@ from app.models import (  # noqa: F401
     admin_boundary,
     camera,
     camera_health,
+    coverage,
     department,
     field_mapping,
     stream_endpoint,
