@@ -26,9 +26,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex h-dvh flex-col overflow-hidden">
         <SiteNav />
-        {children}
+        {/* min-h-0 lets this shrink below its content so the map can fill it
+            exactly and scrolling pages scroll here rather than on the body. */}
+        <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </body>
     </html>
   );
