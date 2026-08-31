@@ -208,8 +208,8 @@ export function CameraMap() {
   return (
     // h-full, not flex-1: <main> supplies a definite height, and flex-1 outside a
     // flex container collapses to zero -- which renders as a black rectangle with
-    // the absolutely-positioned filter panel still visible over it.
-    // inside the column body, so a full viewport height here would push the page
+    // the absolutely-positioned filter panel still visible over it. Not h-screen
+    // either: a full viewport height inside the column body would push the page
     // into a scrollbar exactly as tall as the nav.
     <div className="relative h-full w-full">
       <div ref={container} data-testid="camera-map" className="h-full w-full" />
