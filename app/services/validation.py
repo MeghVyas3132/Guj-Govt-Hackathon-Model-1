@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 
 from app.core.config import settings
@@ -17,6 +18,16 @@ class ValidationResult:
 
 
 class CameraValidator:
+    # DATE columns fed from CSV or JSON arrive as strings. Without coercion the
+    # failure surfaces at flush time as an opaque asyncpg encoding error rather
+    # than as a row error the operator can act on.
+    DATE_FIELDS = ("install_date", "amc_expiry_date")
+    INT_FIELDS = ("retention_days",)
+    BOOL_FIELDS = ("has_night_vision",)
+
+    TRUE_WORDS = frozenset({"1", "true", "yes", "y", "t"})
+    FALSE_WORDS = frozenset({"0", "false", "no", "n", "f"})
+
     REQUIRED = ("external_camera_id", "latitude", "longitude")
 
     def validate(self, values: dict[str, Any]) -> ValidationResult:
@@ -110,5 +121,61 @@ class CameraValidator:
                 )
             else:
                 result.values[name] = number
+
+        for name in self.INT_FIELDS:
+            raw = values.get(name)
+            if raw in (None, "") or isinstance(raw, bool):
+                continue
+            try:
+                result.values[name] = int(str(raw).strip())
+            except ValueError:
+                result.errors.append(
+                    ErrorDetail(
+                        code="invalid_integer",
+                        message=f"{name} {raw!r} is not a whole number.",
+                        field=name,
+                    )
+                )
+
+        for name in self.BOOL_FIELDS:
+            raw = values.get(name)
+            if raw in (None, ""):
+                continue
+            if isinstance(raw, bool):
+                result.values[name] = raw
+                continue
+            word = str(raw).strip().lower()
+            if word in self.TRUE_WORDS:
+                result.values[name] = True
+            elif word in self.FALSE_WORDS:
+                result.values[name] = False
+            else:
+                # Not silently False: a department writing "sometimes" needs telling,
+                # not a fabricated answer about whether the camera sees at night.
+                result.errors.append(
+                    ErrorDetail(
+                        code="invalid_boolean",
+                        message=f"{name} {raw!r} is not a yes/no value.",
+                        field=name,
+                    )
+                )
+
+        for name in self.DATE_FIELDS:
+            raw = values.get(name)
+            if raw in (None, ""):
+                continue
+            if isinstance(raw, date) and not isinstance(raw, datetime):
+                result.values[name] = raw
+                continue
+            try:
+                result.values[name] = date.fromisoformat(str(raw).strip()[:10])
+            except ValueError:
+                result.errors.append(
+                    ErrorDetail(
+                        code="invalid_date",
+                        message=f"{name} {raw!r} is not an ISO date (YYYY-MM-DD).",
+                        field=name,
+                    )
+                )
 
         return result
