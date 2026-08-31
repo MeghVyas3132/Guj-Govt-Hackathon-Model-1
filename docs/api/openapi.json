@@ -1019,6 +1019,82 @@
         "title": "Connectivity",
         "type": "string"
       },
+      "DepartmentCreate": {
+        "properties": {
+          "code": {
+            "examples": [
+              "RTO"
+            ],
+            "maxLength": 16,
+            "title": "Code",
+            "type": "string"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "dept_type": {
+            "default": "government",
+            "title": "Dept Type",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Regional Transport Office"
+            ],
+            "maxLength": 200,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "DepartmentCreate",
+        "type": "object"
+      },
+      "DepartmentRead": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "dept_type": {
+            "title": "Dept Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "dept_type",
+          "is_active"
+        ],
+        "title": "DepartmentRead",
+        "type": "object"
+      },
       "ErrorDetail": {
         "properties": {
           "code": {
@@ -1046,6 +1122,70 @@
           "message"
         ],
         "title": "ErrorDetail",
+        "type": "object"
+      },
+      "FieldMappingRead": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "department_id",
+          "version",
+          "config",
+          "is_active"
+        ],
+        "title": "FieldMappingRead",
+        "type": "object"
+      },
+      "FieldMappingWrite": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "examples": [
+              {
+                "column_map": {
+                  "cam_id": "external_camera_id",
+                  "lat": "latitude"
+                },
+                "value_maps": {
+                  "status": {
+                    "HALTED": "offline",
+                    "RUNNING": "online"
+                  }
+                }
+              }
+            ],
+            "title": "Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "FieldMappingWrite",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1828,6 +1968,219 @@
         "summary": "Stream endpoints for this camera",
         "tags": [
           "cameras"
+        ]
+      }
+    },
+    "/api/v1/departments": {
+      "get": {
+        "operationId": "list_departments_api_v1_departments_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DepartmentRead"
+                  },
+                  "title": "Response List Departments Api V1 Departments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List departments",
+        "tags": [
+          "departments"
+        ]
+      },
+      "post": {
+        "operationId": "create_department_api_v1_departments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register a department",
+        "tags": [
+          "departments"
+        ]
+      }
+    },
+    "/api/v1/departments/{department_id}/field-mappings": {
+      "get": {
+        "description": "Returns the highest version, which is the one a new import will use.",
+        "operationId": "get_field_mapping_api_v1_departments__department_id__field_mappings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldMappingRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The department's current field mapping",
+        "tags": [
+          "departments"
+        ]
+      },
+      "put": {
+        "description": "Creates version N+1 rather than overwriting version N. Each camera records the mapping version it was translated under, so a past import stays reproducible after the config changes.",
+        "operationId": "put_field_mapping_api_v1_departments__department_id__field_mappings_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldMappingWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldMappingRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish a new field-mapping version",
+        "tags": [
+          "departments"
+        ]
+      }
+    },
+    "/api/v1/onboarding/adapters/{adapter_code}/sync": {
+      "post": {
+        "description": "Reads the source's catalogue and runs every entry through the same validation and normalization as a CSV upload. Idempotent: re-running produces no changes when nothing upstream has changed.",
+        "operationId": "sync_adapter_api_v1_onboarding_adapters__adapter_code__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adapter_code",
+            "required": true,
+            "schema": {
+              "title": "Adapter Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Department Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull a source catalogue and onboard it",
+        "tags": [
+          "onboarding"
         ]
       }
     },

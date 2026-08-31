@@ -1,10 +1,13 @@
+import os
 from typing import Literal
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.csv_adapter import CsvAdapter
+from app.adapters.sentinel_adapter import SentinelAdapter
 from app.core.db import get_session
 from app.core.enums import SourceType
 from app.models.department import Department
@@ -13,6 +16,18 @@ from app.schemas.ingestion import IngestReport, RawCameraRecord
 from app.services.ingestion import IngestionService
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+
+# Left as None in production so httpx picks its own transport. Tests replace it with
+# an httpx.MockTransport, which is how the sync route is exercised without the live
+# catalogue's session cookie -- a module attribute rather than a dependency because
+# it is a test seam, not a request-scoped input.
+_ADAPTER_TRANSPORT: httpx.AsyncBaseTransport | None = None
+
+# Defaults to the real sandbox; the catalogue itself is behind a session cookie
+# obtained by signing in, supplied via SENTINEL_SESSION_COOKIE.
+SENTINEL_CATALOGUE_URL = os.environ.get(
+    "SENTINEL_CATALOGUE_URL", "https://cctv.corp8.cloud/cameras.json"
+)
 
 
 async def _department(session: AsyncSession, department_id: UUID) -> Department:
@@ -94,4 +109,42 @@ async def bulk(
         )
         for item in payload
     ]
+    return await IngestionService(session).ingest(records, department, mode="commit")
+
+
+@router.post(
+    "/adapters/{adapter_code}/sync",
+    response_model=IngestReport,
+    summary="Pull a source catalogue and onboard it",
+    description=(
+        "Reads the source's catalogue and runs every entry through the same "
+        "validation and normalization as a CSV upload. Idempotent: re-running "
+        "produces no changes when nothing upstream has changed."
+    ),
+)
+async def sync_adapter(
+    adapter_code: str,
+    department_id: UUID = Query(...),
+    session: AsyncSession = Depends(get_session),
+) -> IngestReport:
+    if adapter_code != SentinelAdapter.code:
+        raise HTTPException(status_code=404, detail=f"Unknown adapter {adapter_code!r}")
+
+    department = await _department(session, department_id)
+    adapter = SentinelAdapter(
+        catalogue_url=SENTINEL_CATALOGUE_URL,
+        session_cookie=os.environ.get("SENTINEL_SESSION_COOKIE"),
+        transport=_ADAPTER_TRANSPORT,
+    )
+
+    try:
+        records = await adapter.fetch(department_id)
+    except httpx.HTTPError as exc:
+        # 502, not 500. On demo day this one digit is the difference between "the
+        # session cookie expired" and "the code is broken", and you get about five
+        # seconds to tell them apart.
+        raise HTTPException(
+            status_code=502, detail=f"Could not reach the source catalogue: {exc}"
+        ) from exc
+
     return await IngestionService(session).ingest(records, department, mode="commit")
