@@ -816,7 +816,11 @@ async def test_tiles_honour_the_same_status_filter(api_client, two_cameras):
 - [ ] **Step 2: Run it to make sure it fails**
 
 Run: `pytest tests/api/test_search.py -v`
-Expected: FAIL — 404 on `/api/v1/cameras/nearby`
+Expected: FAIL — but with **422, not 404**: `/cameras/{camera_id}` catches `nearby` and fails
+to parse it as a UUID. That is the same hazard as the route-ordering rule below, and it means
+`test_radius_search_rejects_partial_parameters` passes *before the endpoint exists* — it is not
+a route-ordering guard. Add explicit tests asserting `/cameras/nearby` and `/cameras/export.csv`
+return 200 rather than 422.
 
 - [ ] **Step 3: Add a filter dependency and the nearby route**
 
@@ -878,7 +882,10 @@ async def list_cameras(
 ```
 
 Add the nearby route. It is declared **before** `/{camera_id}` so FastAPI does not try to
-parse "nearby" as a UUID:
+parse "nearby" as a UUID. Put the query in `CameraRepository.list_nearby()` reusing `_origin`
+and `_apply` rather than writing `ST_DWithin`/`ST_Distance` inline in the router — the
+geography cast is the single line that keeps the radius in metres instead of degrees, and it
+should exist in exactly one place:
 
 ```python
 class CameraNearby(CameraRead):
@@ -947,6 +954,24 @@ CLUSTER_ZOOM_THRESHOLD = 11
 
 
 def _predicates(filters: CameraFilter) -> tuple[str, dict[str, Any]]:
+    """Build the tile query's extra WHERE clauses from the shared filter.
+
+    The two halves are kept strictly apart: the *clause text* is a fixed literal
+    chosen by a branch on the filter, and every *value* leaves via a bound parameter.
+    Nothing derived from the request is ever formatted into SQL -- not the values, not
+    the column names, not the operators. The values are additionally constrained to
+    enum members and UUIDs by `camera_filter` before they arrive here.
+
+    Every field `camera_filter` can produce is handled here, and each clause mirrors
+    its counterpart in `CameraRepository._apply` exactly -- `lower(col) LIKE lower(q)`
+    rather than the merely-similar `ILIKE`, the same four searched columns, the same
+    boundary subquery. A field reaching the tile endpoint and being dropped here is
+    not a smaller result set, it is a map showing markers the table has filtered out.
+
+    The radius fields are the one exception, and they are unreachable rather than
+    ignored: `camera_filter` does not expose them, so only /cameras/nearby ever sets
+    a radius and no tile request can carry one.
+    """
     clauses: list[str] = []
     params: dict[str, Any] = {}
     if filters.department_ids:
@@ -961,7 +986,22 @@ def _predicates(filters: CameraFilter) -> tuple[str, dict[str, Any]]:
     if filters.ownership_classes:
         clauses.append("c.ownership_class = ANY(:ownership_classes)")
         params["ownership_classes"] = [o.value for o in filters.ownership_classes]
-    return ("".join(f" AND {c}" for c in clauses), params)
+    if filters.q:
+        clauses.append(
+            "(lower(c.camera_uid) LIKE :q"
+            " OR lower(c.name) LIKE :q"
+            " OR lower(c.address) LIKE :q"
+            " OR lower(c.external_camera_id) LIKE :q)"
+        )
+        params["q"] = f"%{filters.q.lower()}%"
+    if filters.district_id:
+        clauses.append(
+            "ST_Intersects("
+            "c.location, (SELECT b.geom FROM admin_boundaries b WHERE b.id = :district_id)"
+            ")"
+        )
+        params["district_id"] = str(filters.district_id)
+    return ("".join(f"\n          AND {clause}" for clause in clauses), params)
 
 
 _POINT_TEMPLATE = """
@@ -1021,7 +1061,14 @@ class TileService:
 ```
 
 The filter values are bound parameters; only the fixed clause strings are interpolated, so
-this is not SQL injection.
+this is not SQL injection. This is the only string-built SQL in the codebase — keep the two
+halves strictly apart, and never append an f-string clause here.
+
+**Every field `camera_filter` can produce must be handled.** A field that reaches the tile
+endpoint and is silently dropped does not give a smaller result set — it gives a map showing
+markers the table has already filtered out, which is the exact divergence this shared-filter
+design exists to prevent. Each clause must mirror its counterpart in
+`CameraRepository._apply` exactly.
 
 - [ ] **Step 5: Pass the filter through the tile router**
 
