@@ -16,6 +16,10 @@ def create_app() -> FastAPI:
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    from app.api.v1.router import api_router
+
+    application.include_router(api_router, prefix=settings.api_v1_prefix)
+
     return application
 
 
