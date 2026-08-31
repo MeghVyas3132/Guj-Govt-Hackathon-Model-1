@@ -206,7 +206,10 @@ export function CameraMap() {
   }, [appliedQuery]);
 
   return (
-    <div className="relative h-screen w-full">
+    // flex-1 rather than h-screen: the map is now a sibling of the shared nav
+    // inside the column body, so a full viewport height here would push the page
+    // into a scrollbar exactly as tall as the nav.
+    <div className="relative w-full flex-1 min-h-0">
       <div ref={container} data-testid="camera-map" className="h-full w-full" />
       <FilterPanel filters={filters} onChange={setFilters} matchCount={matchCount} />
       <CameraDrawer camera={selected} onClose={() => setSelected(null)} />
