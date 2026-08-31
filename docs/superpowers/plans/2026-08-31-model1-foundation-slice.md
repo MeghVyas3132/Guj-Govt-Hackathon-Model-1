@@ -89,6 +89,10 @@ seeds/
 - [ ] **Step 1: Create `pyproject.toml`**
 
 ```toml
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sentinel-registry"
 version = "0.1.0"
@@ -112,6 +116,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "testcontainers[postgres]>=4.8", "ruff>=0.7"]
 
+[tool.setuptools]
+packages = ["app"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
@@ -124,7 +131,7 @@ line-length = 100
 ```yaml
 services:
   db:
-    image: postgis/postgis:16-3.4
+    image: ${POSTGIS_IMAGE:-postgis/postgis:16-3.4}
     environment:
       POSTGRES_USER: sentinel
       POSTGRES_PASSWORD: sentinel
@@ -405,14 +412,10 @@ Models 2–4 are being built in parallel. Every day they code against nothing is
 - [ ] **Step 1: Create `app/schemas/common.py`**
 
 ```python
-from typing import Generic, TypeVar
-
 from pydantic import BaseModel, Field
 
-T = TypeVar("T")
 
-
-class Page(BaseModel, Generic[T]):
+class Page[T](BaseModel):
     items: list[T]
     total: int = Field(description="Total rows matching the filter, ignoring pagination.")
     limit: int
@@ -718,8 +721,11 @@ Expected: 3 passed
 
 Run:
 ```bash
-uvicorn app.main:app --reload --port 8000
+mkdir -p docs/api
+uvicorn app.main:app --port 8000 &
+until curl -sf localhost:8000/healthz >/dev/null; do sleep 0.3; done
 curl -s localhost:8000/openapi.json > docs/api/openapi.json
+kill %1
 ```
 
 Send the team: the Swagger URL `http://<your-ip>:8000/docs`, the committed `docs/api/openapi.json`, and this note — *"`GET /api/v1/cameras/{id}/streams` is your entry point. Pick the endpoint whose `reachability` matches your network. Responses are stubbed until Task 6; the shape is final."*
@@ -951,7 +957,7 @@ Create `tests/conftest.py`:
 ```python
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 
 from app.models.base import Base
 

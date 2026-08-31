@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgis/postgis:16-3.4
+    image: ${POSTGIS_IMAGE:-postgis/postgis:16-3.4}
     environment:
       POSTGRES_USER: sentinel
       POSTGRES_PASSWORD: sentinel
