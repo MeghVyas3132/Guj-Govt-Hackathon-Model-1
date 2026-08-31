@@ -811,7 +811,7 @@ import httpx
 import pytest
 
 from app.core.enums import CameraStatus
-from app.services.probe import HlsProbe
+from app.services.probe import HlsProbe, ProbeResult
 
 
 @pytest.mark.asyncio
@@ -968,10 +968,13 @@ Expected: 5 passed
 
 ```python
 import asyncio
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
 
 from arq import cron
 from arq.connections import RedisSettings
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import SessionLocal
@@ -980,7 +983,7 @@ from app.models.camera import Camera
 from app.models.stream_endpoint import StreamEndpoint
 from app.schemas.health import HealthObservationIn
 from app.services.health import HealthService
-from app.services.probe import HlsProbe
+from app.services.probe import HlsProbe, ProbeResult
 
 # Bounded so a large fleet cannot open thousands of sockets at once. At 80k cameras the
 # design is a worker pool partitioned by department with staggered schedules; here we
@@ -989,12 +992,24 @@ PROBE_CONCURRENCY = 20
 PROBE_BATCH = 200
 
 
-async def probe_cameras(ctx: dict) -> dict[str, int]:
-    semaphore = asyncio.Semaphore(PROBE_CONCURRENCY)
-    probe = HlsProbe(session_cookie=ctx.get("sentinel_cookie"))
-    checked = changed = 0
+async def probe_cameras(
+    ctx: dict,
+    *,
+    session_factory: Callable[[], AbstractAsyncContextManager[AsyncSession]] | None = None,
+    probe: HlsProbe | None = None,
+) -> dict[str, int]:
+    """Probe a batch of cameras and record what came back.
 
-    async with SessionLocal() as session:
+    `session_factory` and `probe` exist so this is testable. Built in-line they would
+    be unreachable from a test, which could then only be written against a real
+    database and a real remote host -- and a unit test must not call either. Production
+    passes neither argument and gets the real ones.
+    """
+    semaphore = asyncio.Semaphore(PROBE_CONCURRENCY)
+    probe = probe or HlsProbe(session_cookie=ctx.get("sentinel_cookie"))
+    session_factory = session_factory or SessionLocal
+
+    async with session_factory() as session:
         stmt = (
             select(Camera, StreamEndpoint)
             .join(StreamEndpoint, StreamEndpoint.camera_id == Camera.id)
@@ -1003,16 +1018,28 @@ async def probe_cameras(ctx: dict) -> dict[str, int]:
                 Camera.is_active,
                 Camera.lifecycle_state == "active",
             )
+            # Least recently checked first, so coverage rotates fairly across a fleet
+            # larger than one batch instead of re-probing the same 200 rows forever.
             .order_by(Camera.last_seen_at.asc().nulls_first())
             .limit(PROBE_BATCH)
         )
         pairs = (await session.execute(stmt)).all()
 
-        service = HealthService(session)
-
-        async def run(camera: Camera, endpoint: StreamEndpoint) -> bool:
+        # Fan out on the network, fan in on the database. AsyncSession is not
+        # concurrency-safe: letting gathered tasks each call flush() raises
+        # "Session is already flushing" as soon as two overlap. Probing is the slow
+        # part and stays concurrent; the writes are serialised afterwards.
+        async def check(
+            camera: Camera, endpoint: StreamEndpoint
+        ) -> tuple[Camera, ProbeResult]:
             async with semaphore:
-                result = await probe.check(endpoint.url)
+                return camera, await probe.check(endpoint.url)
+
+        probed = await asyncio.gather(*(check(c, e) for c, e in pairs))
+
+        service = HealthService(session)
+        changed = 0
+        for camera, result in probed:
             outcome = await service.record(
                 camera,
                 HealthObservationIn(
@@ -1022,11 +1049,9 @@ async def probe_cameras(ctx: dict) -> dict[str, int]:
                 ),
                 source="probe",
             )
-            return outcome.changed
+            changed += int(outcome.changed)
 
-        results = await asyncio.gather(*(run(c, e) for c, e in pairs))
-        checked = len(results)
-        changed = sum(results)
+        checked = len(probed)
         await session.commit()
 
     return {"checked": checked, "changed": changed}
@@ -1041,7 +1066,33 @@ class WorkerSettings:
 Ordering by `last_seen_at ASC NULLS FIRST` means the least recently checked cameras are
 always probed first, so coverage rotates fairly across a fleet larger than one batch.
 
-- [ ] **Step 6: Verify against the real sandbox**
+**Two things here are load-bearing and easy to get wrong:**
+
+`session_factory` and `probe` are parameters rather than being built in-line, because a
+function that constructs its own database connection and HTTP client cannot be tested
+except against a real database and a real remote host — and a unit test must call neither.
+Production passes neither argument and gets the real ones.
+
+And the probes are gathered while the **writes are serialised afterwards**. `AsyncSession`
+is not concurrency-safe: letting each gathered task call `flush()` raises
+`InvalidRequestError: Session is already flushing` as soon as two overlap. With one camera
+it appears to work, which is exactly why this needs a test with a dozen. Fan out on the
+network, fan in on the database.
+
+- [ ] **Step 6: Write the worker tests**
+
+Create `tests/workers/test_probe_worker.py` covering: a live manifest marks the camera
+online; every probe is logged even when the status is unchanged; an unchanged status
+reports `changed: 0`; an empty manifest marks it offline; a login redirect leaves it
+`unknown` rather than offline; cameras with no HLS endpoint and decommissioned cameras
+are skipped; the batch limit holds; the least-recently-seen camera is probed first; and
+**a dozen cameras probe concurrently without a session conflict** — that last one is the
+regression guard for the flush race described above.
+
+Pass a fake session factory wrapping the testcontainer session, and an `HlsProbe` built
+over `httpx.MockTransport`. No test contacts a real host.
+
+- [ ] **Step 7: Verify against the real sandbox**
 
 Onboard the Sentinel cameras (Plan 1 Task 9), then run one probe pass by hand:
 
