@@ -9,3 +9,4 @@ node_modules/
 data/*.pmtiles
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
