@@ -34,10 +34,13 @@ def test_translates_department_vocabulary_to_canonical_enums():
     assert result.values["camera_type"] == CameraType.PTZ
 
 
-def test_unmapped_value_falls_back_and_warns_but_does_not_fail():
+def test_an_unmapped_value_passes_through_untouched():
+    """The resolver translates the department's vocabulary and stops. Deciding
+    whether the result is a term this registry recognises belongs to
+    VocabularyService, because the valid set lives in the database -- a new camera
+    type must be a row, not a deploy."""
     result = FieldMappingResolver(AMC_CONFIG).resolve({"cam_id": "A-1", "state": "FLAKY"})
-    assert result.values["status"] == CameraStatus.UNKNOWN
-    assert any("FLAKY" in w for w in result.warnings)
+    assert result.values["status"] == "FLAKY"
 
 
 def test_unmapped_columns_are_preserved_in_metadata_not_dropped():

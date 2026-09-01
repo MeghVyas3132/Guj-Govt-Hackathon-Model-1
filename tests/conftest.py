@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
 
@@ -14,9 +15,19 @@ from app.models import (  # noqa: F401
     coverage,
     department,
     field_mapping,
+    source_connector,
     stream_endpoint,
+    vocabulary,
 )
 from app.models.base import Base
+from seeds.vocabulary import TERMS as _SEED_TERMS
+
+# The seed rows carry a sort_order the schema fixture does not need.
+# (dimension, code, label, is_fallback, range_m, fov_deg, omnidirectional)
+SHIPPED_TERMS = [
+    (dim, code, label, fallback, rng, fov, omni)
+    for dim, code, label, fallback, _order, rng, fov, omni in _SEED_TERMS
+]
 
 
 @pytest.fixture(scope="session")
@@ -37,6 +48,24 @@ async def session(postgres_url: str) -> AsyncSession:
         # the tests exercise exactly the definitions the migration ships.
         for statement in COVERAGE_FUNCTIONS:
             await conn.exec_driver_sql(statement)
+        # camera_footprint reads its geometry defaults from vocabulary_terms, so the
+        # shipped terms are part of a working schema rather than optional seed data.
+        insert_term = text(
+            "INSERT INTO vocabulary_terms "
+            "(id, dimension, code, label, is_fallback, coverage_range_m, "
+            " coverage_fov_deg, is_omnidirectional, created_at, updated_at) "
+            "VALUES (gen_random_uuid(), :dim, :code, :label, :fallback, :rng, "
+            "        :fov, :omni, now(), now()) "
+            "ON CONFLICT (dimension, code) DO NOTHING"
+        )
+        for dim, code, label, fallback, rng, fov, omni in SHIPPED_TERMS:
+            await conn.execute(
+                insert_term,
+                {
+                    "dim": dim, "code": code, "label": label, "fallback": fallback,
+                    "rng": rng, "fov": fov, "omni": omni,
+                },
+            )
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as s:
         yield s

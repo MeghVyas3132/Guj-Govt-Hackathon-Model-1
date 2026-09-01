@@ -12,8 +12,9 @@ from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.ingestion import IngestReport, RawCameraRecord, RowResult
 from app.services.geocoding import DistrictGeocoder
-from app.services.normalization import FieldMappingResolver
+from app.services.normalization import VOCABULARY_FIELDS, FieldMappingResolver
 from app.services.validation import CameraValidator
+from app.services.vocabulary import VocabularyService
 
 # Columns the persister is allowed to write from a normalized draft.
 _WRITABLE = {
@@ -69,6 +70,7 @@ class IngestionService:
         self.cameras = CameraRepository(session)
         self.validator = CameraValidator()
         self.geocoder = DistrictGeocoder(session)
+        self.vocabulary = VocabularyService(session)
 
     async def _resolver(
         self, department: Department
@@ -117,6 +119,21 @@ class IngestionService:
                         f"No coordinates supplied; placed at the representative point of "
                         f"{located.district_name} district (precision: {located.precision})."
                     )
+
+            # Resolve controlled values against the vocabulary tables. An unknown
+            # term normalises to the dimension's fallback so it stays queryable,
+            # but the original text is kept in metadata: a registry that silently
+            # rewrites "fisheye-360" to "other" and forgets loses the very thing
+            # it exists to record.
+            for dimension in VOCABULARY_FIELDS:
+                raw_term = resolved.values.get(dimension)
+                if raw_term in (None, ""):
+                    continue
+                code, term_warning = await self.vocabulary.resolve(dimension, raw_term)
+                resolved.values[dimension] = code
+                if term_warning:
+                    resolved.metadata[f"unmapped_{dimension}"] = str(raw_term)
+                    resolved.warnings.append(term_warning)
 
             validated = self.validator.validate(resolved.values)
             warnings = resolved.warnings + validated.warnings

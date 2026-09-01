@@ -2,10 +2,23 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.enums import SOFT_ENUMS
-
 # The separator before the hemisphere must exclude NSEW, or a greedy class swallows
 # the letter and every southern/western coordinate silently comes back positive.
+# Fields whose values are resolved against the vocabulary tables downstream.
+# Listed here only so an already-canonical key passes through instead of
+# being filed into metadata as an unrecognised column.
+VOCABULARY_FIELDS = frozenset(
+    {
+        "status",
+        "camera_type",
+        "camera_technology",
+        "connectivity",
+        "ownership_class",
+        "site_type",
+        "storage_type",
+    }
+)
+
 _DMS = re.compile(
     r"^\s*(\d+)[^\d]+(\d+)[^\d]+([\d.]+)[^\dNSEWnsew]*([NSEW])?\s*$", re.IGNORECASE
 )
@@ -77,13 +90,17 @@ class FieldMappingResolver:
             if target is None:
                 # An already-canonical key passes through untouched; anything else
                 # is department-specific and belongs in metadata.
-                if source_key in SOFT_ENUMS or source_key in _KNOWN_CANONICAL:
+                if source_key in VOCABULARY_FIELDS or source_key in _KNOWN_CANONICAL:
                     result.values[source_key] = value
                 elif self.passthrough:
                     result.metadata[source_key] = value
                 continue
             result.values[target] = value
 
+        # Translate the department's word into ours, and stop. Whether the result
+        # is a term this registry recognises is VocabularyService's question, not
+        # this class's -- the set of valid terms lives in the database so a new
+        # camera type is a row rather than a deploy.
         for field_name, mapping in self.value_maps.items():
             if field_name not in result.values:
                 continue
@@ -91,19 +108,8 @@ class FieldMappingResolver:
             if raw_value is None:
                 continue
             key = str(raw_value).strip()
-            enum_cls, fallback = SOFT_ENUMS[field_name]
-            mapped = mapping.get(key, mapping.get(key.upper()))
-            if mapped is not None:
-                result.values[field_name] = enum_cls(mapped)
-                continue
-            try:
-                result.values[field_name] = enum_cls(key.lower())
-            except ValueError:
-                result.values[field_name] = fallback
-                result.warnings.append(
-                    f"Unmapped value {key!r} for field {field_name!r}; "
-                    f"defaulted to {fallback.value!r}."
-                )
+            mapped = mapping.get(key, mapping.get(key.upper(), mapping.get(key.lower())))
+            result.values[field_name] = mapped if mapped is not None else key
 
         for field_name, default in self.defaults.items():
             result.values.setdefault(field_name, default)

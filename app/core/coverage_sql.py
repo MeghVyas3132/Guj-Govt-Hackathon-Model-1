@@ -54,24 +54,35 @@ CREATE OR REPLACE FUNCTION camera_footprint(
     fov double precision,
     range_m double precision
 ) RETURNS geography AS $$
+    -- Geometry defaults come from the vocabulary_terms row for this camera type,
+    -- not from a CASE expression listing vendor words. A department running a
+    -- camera type nobody anticipated adds a row with its own range and field of
+    -- view; the gap analysis then models it correctly without a code change.
+    --
+    -- A camera is omnidirectional when its term says so, or when it has no
+    -- recorded bearing. The latter OVERSTATES coverage, which is why the run
+    -- counts those separately so the report can disclose it.
+    WITH term AS (
+        SELECT coverage_range_m, coverage_fov_deg, is_omnidirectional
+        FROM vocabulary_terms
+        WHERE dimension = 'camera_type' AND code = cam_type AND is_active
+        LIMIT 1
+    ),
+    resolved AS (
+        SELECT
+            COALESCE(range_m, (SELECT coverage_range_m FROM term), 100.0) AS r,
+            COALESCE(fov, (SELECT coverage_fov_deg FROM term), 90.0)      AS f,
+            COALESCE((SELECT is_omnidirectional FROM term), false)        AS omni
+    )
     SELECT CASE
-        -- PTZ and dome cameras sweep, so treat them as omnidirectional. A fixed camera
-        -- with no recorded bearing also falls back to a circle; the report flags those
-        -- rows as "assumed omnidirectional" rather than silently overstating coverage.
-        WHEN cam_type IN ('ptz', 'dome')
+        WHEN resolved.omni
           OR azimuth IS NULL
-          OR fov IS NULL
-          OR fov >= 360
-        THEN ST_Buffer(
-            loc,
-            COALESCE(range_m, CASE WHEN cam_type IN ('ptz', 'dome') THEN 250 ELSE 100 END)
-        )
-        ELSE camera_sector(
-            loc, azimuth, fov,
-            COALESCE(range_m, CASE WHEN cam_type = 'anpr' THEN 60 ELSE 100 END)
-        )
+          OR resolved.f >= 360
+        THEN ST_Buffer(loc, resolved.r)
+        ELSE camera_sector(loc, azimuth, resolved.f, resolved.r)
     END
-$$ LANGUAGE sql IMMUTABLE;
+    FROM resolved
+$$ LANGUAGE sql STABLE;
 """
 
 # Applied in order; camera_footprint calls camera_sector, so the sector goes first.

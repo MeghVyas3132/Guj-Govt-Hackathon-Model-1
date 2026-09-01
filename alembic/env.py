@@ -25,7 +25,9 @@ from app.models import (  # noqa: F401
     coverage,
     department,
     field_mapping,
+    source_connector,
     stream_endpoint,
+    vocabulary,
 )
 from app.models.base import Base
 

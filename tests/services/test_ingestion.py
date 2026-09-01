@@ -218,3 +218,81 @@ async def test_supplied_coordinates_are_never_overridden_by_geocoding(
 
     camera = (await session.execute(select(Camera))).scalar_one()
     assert "geocode_precision" not in camera.metadata_
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_camera_type_is_preserved_not_discarded(
+    session, seeded_department_obj
+):
+    """Gujarat runs unknown vendors. A camera type we have never seen must stay
+    queryable AND stay recoverable -- flattening it to 'other' and forgetting the
+    original is how a registry loses the information it exists to hold."""
+    dept = seeded_department_obj
+    record = RawCameraRecord(
+        payload={
+            "external_camera_id": "X-1", "latitude": 23.02, "longitude": 72.57,
+            "camera_type": "fisheye-360-panoramic",
+        },
+        department_id=dept.id,
+        source_type=SourceType.API,
+    )
+
+    report = await IngestionService(session).ingest([record], dept, mode="commit")
+
+    assert report.created == 1
+    camera = (await session.execute(select(Camera))).scalar_one()
+    assert camera.camera_type == "other"
+    assert camera.metadata_["unmapped_camera_type"] == "fisheye-360-panoramic"
+    assert any("fisheye-360-panoramic" in w for w in report.rows[0].warnings)
+
+
+@pytest.mark.asyncio
+async def test_adding_the_term_makes_the_next_import_classify_it_properly(
+    session, seeded_department_obj
+):
+    """The recovery path: an operator adds one row and re-imports, no deploy."""
+    from app.models.vocabulary import VocabularyTerm
+
+    dept = seeded_department_obj
+
+    def record():
+        return RawCameraRecord(
+            payload={
+                "external_camera_id": "X-1", "latitude": 23.02, "longitude": 72.57,
+                "camera_type": "fisheye",
+            },
+            department_id=dept.id,
+            source_type=SourceType.API,
+        )
+
+    await IngestionService(session).ingest([record()], dept, mode="commit")
+    camera = (await session.execute(select(Camera))).scalar_one()
+    assert camera.camera_type == "other"
+
+    session.add(VocabularyTerm(dimension="camera_type", code="fisheye", label="Fisheye"))
+    await session.commit()
+
+    report = await IngestionService(session).ingest([record()], dept, mode="commit")
+    assert report.updated == 1
+    await session.refresh(camera)
+    assert camera.camera_type == "fisheye"
+
+
+@pytest.mark.asyncio
+async def test_a_known_term_records_no_unmapped_metadata(
+    session, seeded_department_obj
+):
+    dept = seeded_department_obj
+    record = RawCameraRecord(
+        payload={
+            "external_camera_id": "X-1", "latitude": 23.02, "longitude": 72.57,
+            "camera_type": "ptz", "status": "online",
+        },
+        department_id=dept.id,
+        source_type=SourceType.API,
+    )
+    await IngestionService(session).ingest([record], dept, mode="commit")
+
+    camera = (await session.execute(select(Camera))).scalar_one()
+    assert camera.camera_type == "ptz"
+    assert "unmapped_camera_type" not in camera.metadata_
