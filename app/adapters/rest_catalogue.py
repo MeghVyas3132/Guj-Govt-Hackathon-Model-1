@@ -37,6 +37,17 @@ class RestCatalogueAdapter:
         auth = self.config.auth
         if auth.type == "none" or not self.secret:
             return {}, {}
+        try:
+            # HTTP header and cookie values are latin-1. httpx raises deep in its
+            # encoding layer otherwise, which surfaces to the operator as an
+            # unrelated-looking UnicodeEncodeError with no mention of which
+            # credential is at fault.
+            self.secret.encode("latin-1")
+        except UnicodeEncodeError:
+            raise ValueError(
+                f"credential {auth.credential_ref!r} contains characters that "
+                f"cannot be sent in an HTTP header; it must be latin-1"
+            ) from None
         if auth.type == "cookie":
             return {}, {auth.name: self.secret}
         if auth.type == "header":
@@ -64,18 +75,35 @@ class RestCatalogueAdapter:
                 raise ValueError(
                     f"root_path {self.config.root_path!r} did not yield a list"
                 )
-            return node
+            return self._check_entries(node)
 
         if isinstance(body, list):
-            return body
+            return self._check_entries(body)
         if not isinstance(body, dict):
             raise ValueError(
                 f"Unrecognised catalogue payload of type {type(body).__name__}"
             )
         for key in _COMMON_ROOTS:
             if isinstance(body.get(key), list):
-                return body[key]
+                return self._check_entries(body[key])
         raise ValueError(f"Unrecognised catalogue shape: keys={sorted(body)}")
+
+    @staticmethod
+    def _check_entries(entries: list[Any]) -> list[dict[str, Any]]:
+        """Reject a list of anything other than objects.
+
+        Some catalogues return bare ids (`["cam01", "cam02"]`). That cannot be
+        onboarded -- there is nowhere to read a name or a location from -- but it
+        has to say so, because without this the first non-dict crashes the whole
+        department's sync with an AttributeError raised from a comprehension.
+        """
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    f"catalogue entry {index} is {type(entry).__name__}, expected an "
+                    f"object; a list of bare ids cannot be onboarded"
+                )
+        return entries
 
     async def _get_catalogue(self) -> list[dict[str, Any]]:
         headers, cookies = self._auth()
@@ -105,7 +133,14 @@ class RestCatalogueAdapter:
             if not url:
                 if not rule.url_template or camera_id is None:
                     continue
-                url = rule.url_template.format(id=camera_id)
+                try:
+                    url = rule.url_template.format(id=camera_id)
+                except (KeyError, IndexError):
+                    # A placeholder we cannot fill. The config validator rejects
+                    # these on write, so this only catches rows written before it
+                    # existed -- skip the one endpoint rather than losing the
+                    # camera and every other endpoint it has.
+                    continue
             endpoints.append(
                 {
                     "protocol": rule.protocol.value,

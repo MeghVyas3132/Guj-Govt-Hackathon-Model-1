@@ -47,8 +47,19 @@ class EndpointRule(BaseModel):
     def must_be_able_to_produce_a_url(self) -> "EndpointRule":
         if not self.url_key and not self.url_template:
             raise ValueError("an endpoint rule needs url_key, url_template, or both")
-        if self.url_template and "{id}" not in self.url_template:
-            raise ValueError("url_template must contain the {id} placeholder")
+        if self.url_template:
+            if "{id}" not in self.url_template:
+                raise ValueError("url_template must contain the {id} placeholder")
+            # {id} is the only substitution offered. Catching an unfillable
+            # placeholder here means a bad connector is rejected when it is saved,
+            # by the operator who can fix it, rather than at 3am mid-sync.
+            try:
+                self.url_template.format(id="probe")
+            except (KeyError, IndexError) as exc:
+                raise ValueError(
+                    f"url_template contains a placeholder that cannot be filled: "
+                    f"{exc}; only {{id}} is substituted"
+                ) from None
         return self
 
 
