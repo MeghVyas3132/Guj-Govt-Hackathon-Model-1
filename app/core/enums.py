@@ -87,3 +87,38 @@ SOFT_ENUMS: dict[str, tuple[type[StrEnum], StrEnum]] = {
     "ownership_class": (OwnershipClass, OwnershipClass.GOVERNMENT),
     "site_type": (SiteType, SiteType.OTHER),
 }
+
+
+class Role(StrEnum):
+    SUPER_ADMIN = "super_admin"
+    DEPT_ADMIN = "dept_admin"
+    ANALYST = "analyst"
+    VIEWER = "viewer"
+
+
+class ActorType(StrEnum):
+    USER = "user"
+    API_KEY = "api_key"
+    SYSTEM = "system"
+
+
+# Scopes are code-level rather than data, unlike the camera vocabularies: each one
+# names a guard that exists in the source. Adding a scope without adding its check
+# would be a permission that grants nothing.
+#
+# Read is statewide, write is department-scoped. An analyst in Rajkot can see
+# Surat's cameras but cannot edit them -- the platform exists to remove
+# departmental blind spots, so scoping reads would defeat its purpose.
+ROLE_SCOPES: dict[Role, frozenset[str]] = {
+    Role.SUPER_ADMIN: frozenset(
+        {
+            "cameras:read", "cameras:write", "cameras:export",
+            "coverage:run", "health:write", "streams:credentials", "admin",
+        }
+    ),
+    Role.DEPT_ADMIN: frozenset(
+        {"cameras:read", "cameras:write", "cameras:export", "coverage:run", "health:write"}
+    ),
+    Role.ANALYST: frozenset({"cameras:read", "cameras:export", "coverage:run"}),
+    Role.VIEWER: frozenset({"cameras:read"}),
+}

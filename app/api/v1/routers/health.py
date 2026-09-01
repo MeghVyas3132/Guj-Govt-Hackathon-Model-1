@@ -6,9 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.models.camera import Camera
 from app.models.camera_health import CameraHealth
 from app.repositories.health import HealthRepository
+from app.schemas.auth import Principal
 from app.schemas.common import Page
 from app.schemas.health import HealthObservationIn, HealthSummary, OfflineCamera
 from app.services.health import HealthService
@@ -36,6 +38,7 @@ class BatchAck(BaseModel):
 async def push_observations(
     observations: list[HealthObservationIn],
     department_id: UUID = Query(...),
+    principal: Principal = Depends(require_scope("health:write")),
     session: AsyncSession = Depends(get_session),
 ) -> BatchAck:
     external_ids = [o.external_camera_id for o in observations if o.external_camera_id]

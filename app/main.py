@@ -13,6 +13,14 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    @application.get("/.well-known/jwks.json", tags=["system"])
+    async def jwks() -> dict[str, list[dict[str, str]]]:
+        """Public keys, so services built alongside this registry can verify its
+        tokens offline. Their login must not fail because we are restarting."""
+        from app.core.security import public_jwk
+
+        return {"keys": [public_jwk()]}
+
     @application.get("/healthz", tags=["system"])
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}

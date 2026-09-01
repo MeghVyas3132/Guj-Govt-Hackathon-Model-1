@@ -17,6 +17,7 @@ from app.models import (  # noqa: F401
     field_mapping,
     source_connector,
     stream_endpoint,
+    user,
     vocabulary,
 )
 from app.models.base import Base
@@ -73,7 +74,13 @@ async def session(postgres_url: str) -> AsyncSession:
 
 
 @pytest.fixture
-async def api_client(session):
+async def api_client(session, super_admin_headers):
+    """Authenticated by default.
+
+    Every endpoint requires a scope now, so an unauthenticated client would make
+    each test assert 401 rather than the behaviour it cares about. Tests that
+    exercise authorisation pass their own headers, which override these.
+    """
     from httpx import ASGITransport, AsyncClient
 
     from app.core.db import get_session
@@ -81,7 +88,9 @@ async def api_client(session):
 
     app.dependency_overrides[get_session] = lambda: session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=super_admin_headers
+    ) as client:
         yield client
     app.dependency_overrides.clear()
 
@@ -129,3 +138,34 @@ async def seeded_department_obj(session):
     session.add(FieldMapping(department_id=dept.id, version=1, config={}))
     await session.commit()
     return dept
+
+
+@pytest.fixture
+async def super_admin_headers(session):
+    """A token every API test uses unless it is specifically testing authorisation.
+
+    Tests that assert a 401 or 403 pass their own headers, which override the
+    client default.
+    """
+    from app.core.security import create_access_token, hash_password
+    from app.models.user import User
+
+    admin = User(
+        email="root@gujarat.gov.in",
+        full_name="Test Super Admin",
+        password_hash=hash_password("test-only"),
+        role="super_admin",
+    )
+    session.add(admin)
+    await session.commit()
+
+    token = create_access_token(
+        subject=str(admin.id),
+        role="super_admin",
+        department_id=None,
+        scopes=[
+            "cameras:read", "cameras:write", "cameras:export",
+            "coverage:run", "health:write", "streams:credentials", "admin",
+        ],
+    )
+    return {"Authorization": f"Bearer {token}"}

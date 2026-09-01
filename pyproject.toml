@@ -20,6 +20,9 @@ dependencies = [
   "httpx>=0.27",
   "arq>=0.26",
   "openpyxl>=3.1",
+  "pyjwt[crypto]>=2.9",
+  "argon2-cffi>=23.1",
+  "email-validator>=2.2",
 ]
 
 [project.optional-dependencies]
@@ -55,4 +58,8 @@ known-third-party = ["alembic"]
 # Depends(), Query(), File(). B008 flags all three. Restructuring the routers to
 # satisfy it would mean giving up FastAPI's signature-driven validation and OpenAPI
 # generation, so the rule is disabled for routers only, not project-wide.
+# FastAPI's dependency-injection idiom is function calls in argument defaults.
+# Satisfying B008 would mean giving up signature-driven validation and the
+# generated OpenAPI schema.
 "app/api/v1/routers/*" = ["B008"]
+"app/core/deps.py" = ["B008"]

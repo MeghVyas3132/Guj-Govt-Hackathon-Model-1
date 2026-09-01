@@ -8,8 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.models.admin_boundary import AdminBoundary
 from app.models.source_connector import PlaceAlias
+from app.schemas.auth import Principal
 
 router = APIRouter(prefix="/boundaries", tags=["boundaries"])
 
@@ -90,6 +92,7 @@ async def list_aliases(
 async def create_alias(
     boundary_id: UUID,
     payload: AliasIn,
+    principal: Principal = Depends(require_scope("admin")),
     session: AsyncSession = Depends(get_session),
 ) -> AliasRead:
     if await session.get(AdminBoundary, boundary_id) is None:

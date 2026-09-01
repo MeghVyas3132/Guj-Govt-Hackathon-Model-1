@@ -7,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.models.coverage import CoverageRun
+from app.schemas.auth import Principal
 from app.schemas.coverage import CoverageRunRead, CoverageRunRequest
 from app.services.coverage import CoverageService, CoverageTooLargeError
 
@@ -27,7 +29,9 @@ router = APIRouter(prefix="/coverage", tags=["coverage"])
     ),
 )
 async def create_run(
-    request: CoverageRunRequest, session: AsyncSession = Depends(get_session)
+    request: CoverageRunRequest,
+    principal: Principal = Depends(require_scope("coverage:run")),
+    session: AsyncSession = Depends(get_session),
 ) -> CoverageRunRead:
     try:
         run = await CoverageService(session).run(request)

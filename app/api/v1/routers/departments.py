@@ -14,8 +14,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.models.department import Department
 from app.models.field_mapping import FieldMapping
+from app.schemas.auth import Principal
 
 router = APIRouter(prefix="/departments", tags=["departments"])
 
@@ -65,7 +67,9 @@ class FieldMappingRead(BaseModel):
     summary="Register a department",
 )
 async def create_department(
-    payload: DepartmentCreate, session: AsyncSession = Depends(get_session)
+    payload: DepartmentCreate,
+    principal: Principal = Depends(require_scope("admin")),
+    session: AsyncSession = Depends(get_session),
 ) -> DepartmentRead:
     # `code` is the camera_uid prefix (GJ-AMC-000001), so a duplicate is a 409 rather
     # than a database error surfacing as a 500: two departments sharing a code would
@@ -134,6 +138,7 @@ async def get_field_mapping(
 async def put_field_mapping(
     department_id: UUID,
     payload: FieldMappingWrite,
+    principal: Principal = Depends(require_scope("admin")),
     session: AsyncSession = Depends(get_session),
 ) -> FieldMappingRead:
     if await session.get(Department, department_id) is None:

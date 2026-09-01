@@ -14,8 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.rest_catalogue import RestCatalogueAdapter
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.models.department import Department
 from app.models.source_connector import Credential, SourceConnector
+from app.schemas.auth import Principal
 from app.schemas.connector import ConnectorConfig
 from app.schemas.ingestion import IngestReport
 from app.services.credentials import CredentialResolver
@@ -57,7 +59,9 @@ async def _load(session: AsyncSession, code: str) -> SourceConnector:
 
 @router.post("", response_model=ConnectorOut, status_code=201)
 async def create_connector(
-    payload: ConnectorIn, session: AsyncSession = Depends(get_session)
+    payload: ConnectorIn,
+    principal: Principal = Depends(require_scope("admin")),
+    session: AsyncSession = Depends(get_session),
 ) -> ConnectorOut:
     if await session.get(Department, payload.department_id) is None:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -114,6 +118,7 @@ async def list_connectors(
 )
 async def sync_connector(
     code: str,
+    principal: Principal = Depends(require_scope("cameras:write")),
     limit: int | None = Query(None, ge=1, description="Cap for a smoke test."),
     session: AsyncSession = Depends(get_session),
 ) -> IngestReport:
@@ -121,6 +126,11 @@ async def sync_connector(
     department = await session.get(Department, connector.department_id)
     if department is None:
         raise HTTPException(status_code=404, detail="Connector's department is missing")
+    if not principal.may_write_department(department.id):
+        raise HTTPException(
+            status_code=403,
+            detail="You may only sync connectors for your own department.",
+        )
 
     config = ConnectorConfig.model_validate(connector.config)
     secret = await CredentialResolver(session).resolve(config.auth.credential_ref)
@@ -149,12 +159,16 @@ async def sync_connector(
 
     if limit is not None:
         records = records[:limit]
-    return await IngestionService(session).ingest(records, department, mode="commit")
+    return await IngestionService(session).ingest(
+        records, department, mode="commit", actor=principal
+    )
 
 
 @router.post("/credentials", status_code=201)
 async def upsert_credential(
-    payload: CredentialIn, session: AsyncSession = Depends(get_session)
+    payload: CredentialIn,
+    principal: Principal = Depends(require_scope("admin")),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     existing = (
         await session.execute(select(Credential).where(Credential.name == payload.name))

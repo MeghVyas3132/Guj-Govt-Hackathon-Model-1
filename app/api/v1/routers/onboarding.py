@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.csv_adapter import CsvAdapter
 from app.core.db import get_session
+from app.core.deps import require_scope
 from app.core.enums import SourceType
 from app.models.department import Department
+from app.schemas.auth import Principal
 from app.schemas.camera import CameraCreate
 from app.schemas.ingestion import IngestReport, RawCameraRecord
 from app.services.ingestion import IngestionService
@@ -30,10 +32,19 @@ SENTINEL_CATALOGUE_URL = os.environ.get(
 )
 
 
-async def _department(session: AsyncSession, department_id: UUID) -> Department:
+async def _department(
+    session: AsyncSession, department_id: UUID, principal: Principal
+) -> Department:
     department = await session.get(Department, department_id)
     if department is None:
         raise HTTPException(status_code=404, detail="Department not found")
+    # Holding cameras:write is not enough: it is departmental for every role below
+    # super_admin, so an admin for one department cannot onboard into another.
+    if not principal.may_write_department(department.id):
+        raise HTTPException(
+            status_code=403,
+            detail="You may only onboard cameras into your own department.",
+        )
     return department
 
 
@@ -42,12 +53,15 @@ async def _run_csv(
     department_id: UUID,
     file: UploadFile,
     mode: Literal["validate_only", "commit"],
+    principal: Principal,
 ) -> IngestReport:
-    department = await _department(session, department_id)
+    department = await _department(session, department_id, principal)
     records = CsvAdapter(await file.read(), file.filename or "upload.csv").parse(
         department_id
     )
-    return await IngestionService(session).ingest(records, department, mode=mode)
+    return await IngestionService(session).ingest(
+        records, department, mode=mode, actor=principal
+    )
 
 
 @router.post(
@@ -57,19 +71,21 @@ async def _run_csv(
 )
 async def preview(
     department_id: UUID = Query(...),
+    principal: Principal = Depends(require_scope("cameras:write")),
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ) -> IngestReport:
-    return await _run_csv(session, department_id, file, "validate_only")
+    return await _run_csv(session, department_id, file, "validate_only", principal)
 
 
 @router.post("/import", response_model=IngestReport, summary="Commit a validated file")
 async def import_file(
     department_id: UUID = Query(...),
+    principal: Principal = Depends(require_scope("cameras:write")),
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ) -> IngestReport:
-    return await _run_csv(session, department_id, file, "commit")
+    return await _run_csv(session, department_id, file, "commit", principal)
 
 
 def _api_payload(item: CameraCreate) -> dict:
@@ -98,9 +114,10 @@ def _api_payload(item: CameraCreate) -> dict:
 async def bulk(
     payload: list[CameraCreate],
     department_id: UUID = Query(...),
+    principal: Principal = Depends(require_scope("cameras:write")),
     session: AsyncSession = Depends(get_session),
 ) -> IngestReport:
-    department = await _department(session, department_id)
+    department = await _department(session, department_id, principal)
     records = [
         RawCameraRecord(
             payload=_api_payload(item),
@@ -109,7 +126,9 @@ async def bulk(
         )
         for item in payload
     ]
-    return await IngestionService(session).ingest(records, department, mode="commit")
+    return await IngestionService(session).ingest(
+        records, department, mode="commit", actor=principal
+    )
 
 
 # The adapter sync route now lives on /connectors/{code}/sync, driven by a

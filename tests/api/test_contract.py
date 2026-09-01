@@ -5,9 +5,15 @@ from app.main import app
 
 
 @pytest.fixture
-async def client():
+async def client(super_admin_headers):
+    # Authenticated, because every endpoint now requires a scope. The assertions
+    # below are unchanged -- they are the published response shape, and the whole
+    # point of this file is that it stays byte-stable while the system behind it
+    # grows.
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=super_admin_headers
+    ) as ac:
         yield ac
 
 

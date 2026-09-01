@@ -27,6 +27,7 @@ from app.models import (  # noqa: F401
     field_mapping,
     source_connector,
     stream_endpoint,
+    user,
     vocabulary,
 )
 from app.models.base import Base

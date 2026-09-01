@@ -5,10 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.core.deps import request_context, require_scope
 from app.core.geo import to_point
 from app.models.camera import Camera
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
+from app.schemas.auth import Principal
 from app.schemas.camera import CameraCreate, CameraRead, StreamEndpointRead
 from app.schemas.common import Page
 from app.schemas.filters import CameraFilter
@@ -75,6 +77,7 @@ class CameraNearby(CameraRead):
 @router.get("", response_model=Page[CameraRead], summary="List and filter cameras")
 async def list_cameras(
     filters: CameraFilter = Depends(camera_filter),
+    principal: Principal = Depends(require_scope("cameras:read")),
     limit: int = Query(50, le=500),
     offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
@@ -102,7 +105,10 @@ async def list_cameras(
     ),
 )
 async def create_camera(
-    payload: CameraCreate, session: AsyncSession = Depends(get_session)
+    payload: CameraCreate,
+    principal: Principal = Depends(require_scope("cameras:write")),
+    session: AsyncSession = Depends(get_session),
+    context: dict = Depends(request_context),
 ) -> CameraRead:
     from app.core.enums import SourceType
     from app.models.department import Department
@@ -112,6 +118,16 @@ async def create_camera(
     department = await session.get(Department, payload.department_id)
     if department is None:
         raise HTTPException(status_code=404, detail="Department not found")
+
+    if not principal.may_write_department(department.id):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You may only write cameras for your own department. Scope alone is "
+                "not enough: cameras:write is departmental for every role below "
+                "super_admin."
+            ),
+        )
 
     body = payload.model_dump(mode="json", exclude_none=True)
     # department_id is routing, not a camera attribute: left in, the resolver would
@@ -130,6 +146,7 @@ async def create_camera(
         ],
         department,
         mode="commit",
+        actor=principal,
     )
 
     row = report.rows[0]
@@ -149,6 +166,33 @@ async def create_camera(
 
 
 @router.get(
+    "/{camera_id}/audit",
+    summary="Change history for one camera",
+    description="Every recorded change, newest first, with the state before and after.",
+)
+async def camera_audit(
+    camera_id: UUID,
+    limit: int = Query(100, le=1000),
+    principal: Principal = Depends(require_scope("cameras:read")),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    from app.services.audit import AuditService
+
+    entries = await AuditService(session).history("camera", camera_id, limit)
+    return [
+        {
+            "action": e.action,
+            "at": e.at.isoformat(),
+            "actor_type": e.actor_type,
+            "actor_label": e.actor_label,
+            "before": e.before,
+            "after": e.after,
+        }
+        for e in entries
+    ]
+
+
+@router.get(
     "/nearby",
     response_model=Page[CameraNearby],
     summary="Cameras within a radius, nearest first",
@@ -159,6 +203,7 @@ async def create_camera(
 )
 async def cameras_nearby(
     lat: float = Query(..., ge=-90, le=90),
+    principal: Principal = Depends(require_scope("cameras:read")),
     lon: float = Query(..., ge=-180, le=180),
     radius_m: float = Query(..., gt=0, le=200_000),
     limit: int = Query(50, le=500),
@@ -186,6 +231,7 @@ async def cameras_nearby(
 )
 async def export_csv(
     filters: CameraFilter = Depends(camera_filter),
+    principal: Principal = Depends(require_scope("cameras:export")),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     # Not paginated: a filtered export that silently stopped at 50 rows would be
@@ -201,6 +247,7 @@ async def export_csv(
 @router.get("/{camera_id}", response_model=CameraRead)
 async def get_camera(
     camera_id: UUID,
+    principal: Principal = Depends(require_scope("cameras:read")),
     session: AsyncSession = Depends(get_session),
 ) -> CameraRead:
     row = await session.get(Camera, camera_id)
@@ -219,7 +266,9 @@ async def get_camera(
     ),
 )
 async def get_camera_streams(
-    camera_id: UUID, session: AsyncSession = Depends(get_session)
+    camera_id: UUID,
+    principal: Principal = Depends(require_scope("cameras:read")),
+    session: AsyncSession = Depends(get_session),
 ) -> list[StreamEndpointRead]:
     # Primary first, so a client that just takes the head of the list gets the
     # endpoint the source designated as canonical rather than an arbitrary row.

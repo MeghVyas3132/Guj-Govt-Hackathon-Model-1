@@ -10,11 +10,29 @@ from app.models.department import Department
 from app.models.field_mapping import FieldMapping
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
+from app.schemas.auth import Principal
 from app.schemas.ingestion import IngestReport, RawCameraRecord, RowResult
+from app.services.audit import AuditService
 from app.services.geocoding import DistrictGeocoder
 from app.services.normalization import VOCABULARY_FIELDS, FieldMappingResolver
 from app.services.validation import CameraValidator
 from app.services.vocabulary import VocabularyService
+
+
+def _snapshot(camera: Camera) -> dict[str, Any]:
+    """The fields worth diffing in an audit entry. Deliberately not everything:
+    a trail nobody can read at a glance is a trail nobody reads."""
+    return {
+        "external_camera_id": camera.external_camera_id,
+        "name": camera.name,
+        "camera_type": camera.camera_type,
+        "current_status": camera.current_status,
+        "connectivity": camera.connectivity,
+        "site_type": camera.site_type,
+        "ownership_class": camera.ownership_class,
+        "lifecycle_state": camera.lifecycle_state,
+    }
+
 
 # Columns the persister is allowed to write from a normalized draft.
 _WRITABLE = {
@@ -71,6 +89,7 @@ class IngestionService:
         self.validator = CameraValidator()
         self.geocoder = DistrictGeocoder(session)
         self.vocabulary = VocabularyService(session)
+        self.audit = AuditService(session)
 
     async def _resolver(
         self, department: Department
@@ -90,6 +109,7 @@ class IngestionService:
         records: list[RawCameraRecord],
         department: Department,
         mode: Literal["validate_only", "commit"],
+        actor: Principal | None = None,
     ) -> IngestReport:
         resolver, mapping_version, config = await self._resolver(department)
         geocode_from = config.get("geocode_from")
@@ -167,7 +187,12 @@ class IngestionService:
                 continue
 
             outcome = await self._persist(
-                validated.values, resolved.metadata, record, department, mapping_version
+                validated.values,
+                resolved.metadata,
+                record,
+                department,
+                mapping_version,
+                actor,
             )
             setattr(report, outcome, getattr(report, outcome) + 1)
             report.rows.append(
@@ -218,6 +243,7 @@ class IngestionService:
         record: RawCameraRecord,
         department: Department,
         mapping_version: int,
+        actor: "Principal | None" = None,
     ) -> str:
         external_id = str(values["external_camera_id"])
         wkt = f"SRID=4326;POINT({values['longitude']} {values['latitude']})"
@@ -248,8 +274,13 @@ class IngestionService:
                 setattr(camera, key, values[key])
             self.cameras.add(camera)
             await self.session.flush()
+            self.audit.record(
+                action="camera.created", entity_type="camera", entity_id=camera.id,
+                actor=actor, after=_snapshot(camera),
+            )
             outcome = "created"
         else:
+            before = _snapshot(camera)
             changed = False
             if _point_moved(
                 camera.location, float(values["longitude"]), float(values["latitude"])
@@ -270,8 +301,14 @@ class IngestionService:
 
             if changed:
                 await self.session.flush()
+                self.audit.record(
+                    action="camera.updated", entity_type="camera", entity_id=camera.id,
+                    actor=actor, before=before, after=_snapshot(camera),
+                )
                 outcome = "updated"
             else:
+                # Nothing recorded on a no-op. A trail that gains thousands of
+                # "nothing changed" rows every night is one nobody reads.
                 outcome = "skipped"
 
         # Deliberately also on "skipped". A camera's core fields can be identical
