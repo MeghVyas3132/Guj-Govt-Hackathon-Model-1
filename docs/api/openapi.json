@@ -243,16 +243,19 @@
             "title": "Azimuth Deg"
           },
           "camera_technology": {
-            "$ref": "#/components/schemas/CameraTechnology",
-            "default": "ip"
+            "default": "ip",
+            "title": "Camera Technology",
+            "type": "string"
           },
           "camera_type": {
-            "$ref": "#/components/schemas/CameraType",
-            "default": "fixed"
+            "default": "fixed",
+            "title": "Camera Type",
+            "type": "string"
           },
           "connectivity": {
-            "$ref": "#/components/schemas/Connectivity",
-            "default": "unknown"
+            "default": "unknown",
+            "title": "Connectivity",
+            "type": "string"
           },
           "department_id": {
             "format": "uuid",
@@ -368,8 +371,9 @@
             "title": "Operator Department Id"
           },
           "ownership_class": {
-            "$ref": "#/components/schemas/OwnershipClass",
-            "default": "government"
+            "default": "government",
+            "title": "Ownership Class",
+            "type": "string"
           },
           "range_m": {
             "anyOf": [
@@ -413,8 +417,9 @@
             "title": "Retention Days"
           },
           "site_type": {
-            "$ref": "#/components/schemas/SiteType",
-            "default": "other"
+            "default": "other",
+            "title": "Site Type",
+            "type": "string"
           },
           "storage_type": {
             "anyOf": [
@@ -494,12 +499,14 @@
             "title": "Azimuth Deg"
           },
           "camera_technology": {
-            "$ref": "#/components/schemas/CameraTechnology",
-            "default": "ip"
+            "default": "ip",
+            "title": "Camera Technology",
+            "type": "string"
           },
           "camera_type": {
-            "$ref": "#/components/schemas/CameraType",
-            "default": "fixed"
+            "default": "fixed",
+            "title": "Camera Type",
+            "type": "string"
           },
           "camera_uid": {
             "examples": [
@@ -509,8 +516,9 @@
             "type": "string"
           },
           "connectivity": {
-            "$ref": "#/components/schemas/Connectivity",
-            "default": "unknown"
+            "default": "unknown",
+            "title": "Connectivity",
+            "type": "string"
           },
           "created_at": {
             "format": "date-time",
@@ -518,8 +526,9 @@
             "type": "string"
           },
           "current_status": {
-            "$ref": "#/components/schemas/CameraStatus",
-            "default": "unknown"
+            "default": "unknown",
+            "title": "Current Status",
+            "type": "string"
           },
           "department_code": {
             "anyOf": [
@@ -641,8 +650,9 @@
             "type": "number"
           },
           "lifecycle_state": {
-            "$ref": "#/components/schemas/LifecycleState",
-            "default": "active"
+            "default": "active",
+            "title": "Lifecycle State",
+            "type": "string"
           },
           "longitude": {
             "examples": [
@@ -686,8 +696,9 @@
             "title": "Operator Department Id"
           },
           "ownership_class": {
-            "$ref": "#/components/schemas/OwnershipClass",
-            "default": "government"
+            "default": "government",
+            "title": "Ownership Class",
+            "type": "string"
           },
           "range_m": {
             "anyOf": [
@@ -731,11 +742,13 @@
             "title": "Retention Days"
           },
           "site_type": {
-            "$ref": "#/components/schemas/SiteType",
-            "default": "other"
+            "default": "other",
+            "title": "Site Type",
+            "type": "string"
           },
           "source_type": {
-            "$ref": "#/components/schemas/SourceType"
+            "title": "Source Type",
+            "type": "string"
           },
           "status_since": {
             "anyOf": [
@@ -844,12 +857,14 @@
             "title": "Azimuth Deg"
           },
           "camera_technology": {
-            "$ref": "#/components/schemas/CameraTechnology",
-            "default": "ip"
+            "default": "ip",
+            "title": "Camera Technology",
+            "type": "string"
           },
           "camera_type": {
-            "$ref": "#/components/schemas/CameraType",
-            "default": "fixed"
+            "default": "fixed",
+            "title": "Camera Type",
+            "type": "string"
           },
           "camera_uid": {
             "examples": [
@@ -859,8 +874,9 @@
             "type": "string"
           },
           "connectivity": {
-            "$ref": "#/components/schemas/Connectivity",
-            "default": "unknown"
+            "default": "unknown",
+            "title": "Connectivity",
+            "type": "string"
           },
           "created_at": {
             "format": "date-time",
@@ -868,8 +884,9 @@
             "type": "string"
           },
           "current_status": {
-            "$ref": "#/components/schemas/CameraStatus",
-            "default": "unknown"
+            "default": "unknown",
+            "title": "Current Status",
+            "type": "string"
           },
           "department_code": {
             "anyOf": [
@@ -987,8 +1004,9 @@
             "type": "number"
           },
           "lifecycle_state": {
-            "$ref": "#/components/schemas/LifecycleState",
-            "default": "active"
+            "default": "active",
+            "title": "Lifecycle State",
+            "type": "string"
           },
           "longitude": {
             "examples": [
@@ -1032,8 +1050,9 @@
             "title": "Operator Department Id"
           },
           "ownership_class": {
-            "$ref": "#/components/schemas/OwnershipClass",
-            "default": "government"
+            "default": "government",
+            "title": "Ownership Class",
+            "type": "string"
           },
           "range_m": {
             "anyOf": [
@@ -1077,11 +1096,13 @@
             "title": "Retention Days"
           },
           "site_type": {
-            "$ref": "#/components/schemas/SiteType",
-            "default": "other"
+            "default": "other",
+            "title": "Site Type",
+            "type": "string"
           },
           "source_type": {
-            "$ref": "#/components/schemas/SourceType"
+            "title": "Source Type",
+            "type": "string"
           },
           "status_since": {
             "anyOf": [
@@ -1144,40 +1165,6 @@
           "maintenance"
         ],
         "title": "CameraStatus",
-        "type": "string"
-      },
-      "CameraTechnology": {
-        "enum": [
-          "analog",
-          "ip",
-          "unknown"
-        ],
-        "title": "CameraTechnology",
-        "type": "string"
-      },
-      "CameraType": {
-        "enum": [
-          "fixed",
-          "ptz",
-          "dome",
-          "bullet",
-          "anpr",
-          "thermal",
-          "other"
-        ],
-        "title": "CameraType",
-        "type": "string"
-      },
-      "Connectivity": {
-        "enum": [
-          "fiber",
-          "4g",
-          "5g",
-          "wifi",
-          "lan",
-          "unknown"
-        ],
-        "title": "Connectivity",
         "type": "string"
       },
       "ConnectorConfig": {
@@ -1869,14 +1856,6 @@
         "title": "IngestReport",
         "type": "object"
       },
-      "LifecycleState": {
-        "enum": [
-          "active",
-          "decommissioned"
-        ],
-        "title": "LifecycleState",
-        "type": "string"
-      },
       "OfflineCamera": {
         "properties": {
           "camera_id": {
@@ -1947,15 +1926,6 @@
         ],
         "title": "OfflineCamera",
         "type": "object"
-      },
-      "OwnershipClass": {
-        "enum": [
-          "government",
-          "private",
-          "ppp"
-        ],
-        "title": "OwnershipClass",
-        "type": "string"
       },
       "Page_CameraNearby_": {
         "properties": {
@@ -2113,32 +2083,6 @@
         "title": "RowResult",
         "type": "object"
       },
-      "SiteType": {
-        "enum": [
-          "traffic_junction",
-          "godown",
-          "pds_shop",
-          "rto_checkpoint",
-          "office",
-          "hospital",
-          "bus_depot",
-          "border_checkpost",
-          "public_space",
-          "other"
-        ],
-        "title": "SiteType",
-        "type": "string"
-      },
-      "SourceType": {
-        "enum": [
-          "csv",
-          "manual",
-          "api",
-          "adapter"
-        ],
-        "title": "SourceType",
-        "type": "string"
-      },
       "StreamEndpointRead": {
         "description": "How Models 2-4 reach this camera. Credentials are omitted unless the caller\nholds the streams:credentials scope.",
         "properties": {
@@ -2167,11 +2111,13 @@
             "type": "boolean"
           },
           "protocol": {
-            "$ref": "#/components/schemas/StreamProtocol"
+            "title": "Protocol",
+            "type": "string"
           },
           "reachability": {
-            "$ref": "#/components/schemas/Reachability",
-            "description": "public_cdn works on any network; direct_ip needs gateway ports open."
+            "description": "public_cdn works on any network; direct_ip needs gateway ports open.",
+            "title": "Reachability",
+            "type": "string"
           },
           "requires_auth": {
             "default": false,
@@ -2490,7 +2436,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraType"
+                "type": "string"
               },
               "title": "Camera Types",
               "type": "array"
@@ -2502,7 +2448,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraStatus"
+                "type": "string"
               },
               "title": "Statuses",
               "type": "array"
@@ -2514,7 +2460,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/OwnershipClass"
+                "type": "string"
               },
               "title": "Ownership Classes",
               "type": "array"
@@ -2564,6 +2510,46 @@
         "tags": [
           "cameras"
         ]
+      },
+      "post": {
+        "description": "Manual onboarding. Routed through the same ingestion pipeline as CSV upload and vendor sync, so a camera typed into a form gets identical validation, vocabulary resolution and dedupe. Re-submitting the same (department, external_camera_id) updates rather than duplicating.",
+        "operationId": "create_camera_api_v1_cameras_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register a single camera",
+        "tags": [
+          "cameras"
+        ]
       }
     },
     "/api/v1/cameras/export.csv": {
@@ -2608,7 +2594,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraType"
+                "type": "string"
               },
               "title": "Camera Types",
               "type": "array"
@@ -2620,7 +2606,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraStatus"
+                "type": "string"
               },
               "title": "Statuses",
               "type": "array"
@@ -2632,7 +2618,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/OwnershipClass"
+                "type": "string"
               },
               "title": "Ownership Classes",
               "type": "array"
@@ -3914,7 +3900,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraType"
+                "type": "string"
               },
               "title": "Camera Types",
               "type": "array"
@@ -3926,7 +3912,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/CameraStatus"
+                "type": "string"
               },
               "title": "Statuses",
               "type": "array"
@@ -3938,7 +3924,7 @@
             "required": false,
             "schema": {
               "items": {
-                "$ref": "#/components/schemas/OwnershipClass"
+                "type": "string"
               },
               "title": "Ownership Classes",
               "type": "array"

@@ -189,8 +189,55 @@ async def test_tiles_filter_by_department_uuid(api_client, two_cameras, seeded_d
 
 
 @pytest.mark.asyncio
-async def test_a_filter_value_that_is_not_a_valid_enum_is_rejected(api_client):
-    """The tile query interpolates clause text and binds values. This confirms the
-    values are constrained by the enum before they ever reach the database."""
-    response = await api_client.get(f"{AHMEDABAD_TILE}?statuses=online';DROP TABLE cameras;--")
-    assert response.status_code == 422
+async def test_a_hostile_filter_value_is_bound_not_interpolated(
+    api_client, session, two_cameras
+):
+    """Filter values are plain strings now that vocabulary terms are data, so the
+    enum no longer rejects them on the way in. The remaining defence is that every
+    value leaves as a bound parameter -- so assert the table survives rather than
+    assuming it does."""
+    from sqlalchemy import func, select, text
+
+    from app.models.camera import Camera
+
+    hostile = "online'; DROP TABLE cameras; --"
+
+    listed = await api_client.get(f"/api/v1/cameras?statuses={hostile}")
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 0  # matches nothing; no camera has that status
+
+    tile = await api_client.get(f"{AHMEDABAD_TILE}?statuses={hostile}")
+    assert tile.status_code == 204
+
+    survivors = (
+        await session.execute(select(func.count()).select_from(Camera))
+    ).scalar_one()
+    assert survivors == 2
+    assert (
+        await session.execute(text("SELECT to_regclass('public.cameras')"))
+    ).scalar_one() == "cameras"
+
+
+@pytest.mark.asyncio
+async def test_a_vocabulary_term_added_at_runtime_is_immediately_filterable(
+    api_client, session, seeded_department
+):
+    """The reason filters stopped being enums: a term added today must be usable
+    today, not after a deploy."""
+    from app.models.camera import Camera
+    from app.models.vocabulary import VocabularyTerm
+
+    session.add(
+        VocabularyTerm(dimension="camera_type", code="fisheye", label="Fisheye")
+    )
+    session.add(
+        Camera(
+            camera_uid="GJ-FISH-000001", department_id=seeded_department,
+            external_camera_id="F-1", location="SRID=4326;POINT(72.5714 23.0225)",
+            camera_type="fisheye", current_status="online",
+        )
+    )
+    await session.commit()
+
+    response = await api_client.get("/api/v1/cameras?camera_types=fisheye")
+    assert response.json()["total"] == 1

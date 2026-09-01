@@ -2,8 +2,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums import CameraStatus, CameraType, OwnershipClass
-
 
 class CameraFilter(BaseModel):
     """One filter object, three consumers.
@@ -16,9 +14,9 @@ class CameraFilter(BaseModel):
 
     q: str | None = Field(default=None, description="Free text over uid, name, address.")
     department_ids: list[UUID] = Field(default_factory=list)
-    camera_types: list[CameraType] = Field(default_factory=list)
-    statuses: list[CameraStatus] = Field(default_factory=list)
-    ownership_classes: list[OwnershipClass] = Field(default_factory=list)
+    camera_types: list[str] = Field(default_factory=list)
+    statuses: list[str] = Field(default_factory=list)
+    ownership_classes: list[str] = Field(default_factory=list)
     district_id: UUID | None = None
     near_lat: float | None = Field(default=None, ge=-90, le=90)
     near_lon: float | None = Field(default=None, ge=-180, le=180)

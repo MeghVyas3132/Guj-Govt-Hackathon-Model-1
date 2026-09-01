@@ -36,13 +36,13 @@ def _predicates(filters: CameraFilter) -> tuple[str, dict[str, Any]]:
         params["department_ids"] = [str(d) for d in filters.department_ids]
     if filters.camera_types:
         clauses.append("c.camera_type = ANY(:camera_types)")
-        params["camera_types"] = [t.value for t in filters.camera_types]
+        params["camera_types"] = list(filters.camera_types)
     if filters.statuses:
         clauses.append("c.current_status = ANY(:statuses)")
-        params["statuses"] = [s.value for s in filters.statuses]
+        params["statuses"] = list(filters.statuses)
     if filters.ownership_classes:
         clauses.append("c.ownership_class = ANY(:ownership_classes)")
-        params["ownership_classes"] = [o.value for o in filters.ownership_classes]
+        params["ownership_classes"] = list(filters.ownership_classes)
     if filters.q:
         clauses.append(
             "(lower(c.camera_uid) LIKE :q"

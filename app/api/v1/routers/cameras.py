@@ -5,12 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.enums import CameraStatus, CameraType, OwnershipClass
 from app.core.geo import to_point
 from app.models.camera import Camera
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
-from app.schemas.camera import CameraRead, StreamEndpointRead
+from app.schemas.camera import CameraCreate, CameraRead, StreamEndpointRead
 from app.schemas.common import Page
 from app.schemas.filters import CameraFilter
 from app.services.export import cameras_to_csv
@@ -41,9 +40,9 @@ def _to_read(row: Camera) -> CameraRead:
 def camera_filter(
     q: str | None = Query(None, description="Free text over uid, name, address."),
     department_ids: list[UUID] = Query(default_factory=list),
-    camera_types: list[CameraType] = Query(default_factory=list),
-    statuses: list[CameraStatus] = Query(default_factory=list),
-    ownership_classes: list[OwnershipClass] = Query(default_factory=list),
+    camera_types: list[str] = Query(default_factory=list),
+    statuses: list[str] = Query(default_factory=list),
+    ownership_classes: list[str] = Query(default_factory=list),
     district_id: UUID | None = Query(None),
 ) -> CameraFilter:
     """The one place the query string becomes a CameraFilter.
@@ -90,6 +89,65 @@ async def list_cameras(
 # order, so with the paths reversed the literal string "nearby" would be handed to the
 # UUID parser and every request here would answer 422 instead of searching. The same
 # goes for `/export.csv` below.
+@router.post(
+    "",
+    response_model=CameraRead,
+    status_code=201,
+    summary="Register a single camera",
+    description=(
+        "Manual onboarding. Routed through the same ingestion pipeline as CSV upload "
+        "and vendor sync, so a camera typed into a form gets identical validation, "
+        "vocabulary resolution and dedupe. Re-submitting the same "
+        "(department, external_camera_id) updates rather than duplicating."
+    ),
+)
+async def create_camera(
+    payload: CameraCreate, session: AsyncSession = Depends(get_session)
+) -> CameraRead:
+    from app.core.enums import SourceType
+    from app.models.department import Department
+    from app.schemas.ingestion import RawCameraRecord
+    from app.services.ingestion import IngestionService
+
+    department = await session.get(Department, payload.department_id)
+    if department is None:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    body = payload.model_dump(mode="json", exclude_none=True)
+    # department_id is routing, not a camera attribute: left in, the resolver would
+    # file it into every manually-entered camera's metadata.
+    body.pop("department_id", None)
+    extra = body.pop("metadata", None) or {}
+    body.update(extra)
+
+    report = await IngestionService(session).ingest(
+        [
+            RawCameraRecord(
+                payload=body,
+                department_id=department.id,
+                source_type=SourceType.MANUAL,
+            )
+        ],
+        department,
+        mode="commit",
+    )
+
+    row = report.rows[0]
+    if row.outcome == "failed":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Camera was not accepted.",
+                "errors": [e.model_dump() for e in row.errors],
+                "warnings": row.warnings,
+            },
+        )
+
+    repo = CameraRepository(session)
+    camera = await repo.get_by_external_id(department.id, payload.external_camera_id)
+    return _to_read(camera)
+
+
 @router.get(
     "/nearby",
     response_model=Page[CameraNearby],

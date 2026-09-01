@@ -4,19 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import (
-    CameraStatus,
-    CameraTechnology,
-    CameraType,
-    Connectivity,
-    LifecycleState,
-    OwnershipClass,
-    Reachability,
-    SiteType,
-    SourceType,
-    StreamProtocol,
-)
-
 
 class StreamEndpointRead(BaseModel):
     """How Models 2-4 reach this camera. Credentials are omitted unless the caller
@@ -25,37 +12,43 @@ class StreamEndpointRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    protocol: StreamProtocol
+    protocol: str
     url: str = Field(examples=["rtsp://103.250.160.189:8554/stream/cam04"])
     codec: str | None = Field(default=None, examples=["h264"])
     resolution: str | None = Field(default=None, examples=["1920x1080"])
     is_primary: bool = True
-    reachability: Reachability = Field(
+    reachability: str = Field(
         description="public_cdn works on any network; direct_ip needs gateway ports open."
     )
     requires_auth: bool = False
     verified_at: datetime | None = None
 
 
+# Vocabulary-backed fields are plain strings at the API boundary. Typing them as
+# Python enums would make FastAPI reject a value the vocabulary tables accept --
+# the registry refusing a camera type it is perfectly capable of recording, purely
+# because that word was not known when this file was written. VocabularyService is
+# the single gate; it resolves unknown terms to the dimension's fallback and keeps
+# the original in metadata.
 class CameraBase(BaseModel):
     external_camera_id: str = Field(examples=["cam04"])
     name: str | None = Field(default=None, examples=["Nehru Bridge East Approach"])
     latitude: float = Field(ge=-90, le=90, examples=[23.0225])
     longitude: float = Field(ge=-180, le=180, examples=[72.5714])
     address: str | None = None
-    camera_type: CameraType = CameraType.FIXED
-    camera_technology: CameraTechnology = CameraTechnology.IP
+    camera_type: str = "fixed"
+    camera_technology: str = "ip"
     azimuth_deg: float | None = Field(default=None, ge=0, lt=360, examples=[135.0])
     fov_deg: float | None = Field(default=None, gt=0, le=360, examples=[90.0])
     range_m: float | None = Field(default=None, gt=0, examples=[100.0])
     height_m: float | None = Field(default=None, gt=0)
     resolution: str | None = None
     has_night_vision: bool | None = None
-    connectivity: Connectivity = Connectivity.UNKNOWN
+    connectivity: str = "unknown"
     storage_type: str | None = Field(default=None, examples=["local"])
     retention_days: int | None = Field(default=None, ge=0, examples=[15])
-    ownership_class: OwnershipClass = OwnershipClass.GOVERNMENT
-    site_type: SiteType = SiteType.OTHER
+    ownership_class: str = "government"
+    site_type: str = "other"
     amc_vendor: str | None = None
     amc_expiry_date: date | None = None
     install_date: date | None = None
@@ -74,12 +67,12 @@ class CameraUpdate(BaseModel):
     name: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    camera_type: CameraType | None = None
+    camera_type: str | None = None
     azimuth_deg: float | None = Field(default=None, ge=0, lt=360)
     fov_deg: float | None = Field(default=None, gt=0, le=360)
     range_m: float | None = Field(default=None, gt=0)
-    connectivity: Connectivity | None = None
-    site_type: SiteType | None = None
+    connectivity: str | None = None
+    site_type: str | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -92,11 +85,11 @@ class CameraRead(CameraBase):
     department_code: str | None = Field(default=None, examples=["POL"])
     operator_department_id: UUID | None = None
     district_id: UUID | None = None
-    current_status: CameraStatus = CameraStatus.UNKNOWN
+    current_status: str = "unknown"
     status_since: datetime | None = None
     last_seen_at: datetime | None = None
-    lifecycle_state: LifecycleState = LifecycleState.ACTIVE
-    source_type: SourceType
+    lifecycle_state: str = "active"
+    source_type: str
     stream_endpoints: list[StreamEndpointRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

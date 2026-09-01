@@ -58,12 +58,12 @@ class CameraRepository:
         if filters.department_ids:
             stmt = stmt.where(Camera.department_id.in_(filters.department_ids))
         if filters.camera_types:
-            stmt = stmt.where(Camera.camera_type.in_([t.value for t in filters.camera_types]))
+            stmt = stmt.where(Camera.camera_type.in_(filters.camera_types))
         if filters.statuses:
-            stmt = stmt.where(Camera.current_status.in_([s.value for s in filters.statuses]))
+            stmt = stmt.where(Camera.current_status.in_(filters.statuses))
         if filters.ownership_classes:
             stmt = stmt.where(
-                Camera.ownership_class.in_([o.value for o in filters.ownership_classes])
+                Camera.ownership_class.in_(filters.ownership_classes)
             )
         if filters.q:
             pattern = f"%{filters.q.lower()}%"
