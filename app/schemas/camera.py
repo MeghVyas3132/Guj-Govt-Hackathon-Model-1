@@ -93,3 +93,25 @@ class CameraRead(CameraBase):
     stream_endpoints: list[StreamEndpointRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+
+class EnrichmentResult(BaseModel):
+    """What derivation found for one camera.
+
+    `metadata` is deliberately open: what a stream can tell us about itself
+    differs by protocol and by gateway, and pinning it to a fixed shape here
+    would mean discarding whatever a future source volunteers.
+    """
+
+    camera_id: str
+    external_camera_id: str | None = None
+    updated: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class EnrichmentReport(BaseModel):
+    checked: int
+    updated: int
+    failed: int
+    results: list[EnrichmentResult] = Field(default_factory=list)

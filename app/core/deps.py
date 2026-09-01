@@ -115,3 +115,14 @@ async def request_context(request: Request) -> dict[str, str | None]:
         "ip": request.client.host if request.client else None,
         "user_agent": request.headers.get("user-agent"),
     }
+
+
+def get_enricher() -> "StreamEnricher":
+    """The stream enricher, as a dependency so tests can substitute one.
+
+    Built per request rather than shared: it holds no state worth reusing, and a
+    module-level instance would make the ffprobe path unpatchable.
+    """
+    from app.services.enrichment import StreamEnricher
+
+    return StreamEnricher()

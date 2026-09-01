@@ -5,18 +5,44 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.deps import request_context, require_scope
+from app.core.deps import get_enricher, request_context, require_scope
+from app.services.enrichment import StreamEnricher
+from app.services.metadata import EnrichmentOutcome, MetadataService
 from app.core.geo import to_point
 from app.models.camera import Camera
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.auth import Principal
-from app.schemas.camera import CameraCreate, CameraRead, StreamEndpointRead
+from app.schemas.camera import (
+    CameraCreate,
+    CameraRead,
+    EnrichmentReport,
+    EnrichmentResult,
+    StreamEndpointRead,
+)
 from app.schemas.common import Page
 from app.schemas.filters import CameraFilter
 from app.services.export import cameras_to_csv
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
+
+
+def _enrichment_report(outcomes: list[EnrichmentOutcome]) -> EnrichmentReport:
+    return EnrichmentReport(
+        checked=len(outcomes),
+        updated=sum(1 for o in outcomes if o.updated),
+        failed=sum(1 for o in outcomes if o.error),
+        results=[
+            EnrichmentResult(
+                camera_id=str(o.camera_id),
+                external_camera_id=o.external_camera_id,
+                updated=o.updated,
+                metadata=o.metadata,
+                error=o.error,
+            )
+            for o in outcomes
+        ],
+    )
 
 
 def _to_read(row: Camera) -> CameraRead:
@@ -284,3 +310,61 @@ async def get_camera_streams(
         .all()
     )
     return [StreamEndpointRead.model_validate(row) for row in rows]
+
+
+@router.post(
+    "/{camera_id}/enrich",
+    response_model=EnrichmentReport,
+    summary="Derive metadata from this camera's stream",
+    description=(
+        "Reads the camera's HLS manifest and decodes one segment to establish "
+        "codec, resolution and frame rate. Use this when a source catalogue "
+        "supplies identifiers but no technical metadata, which is the common case."
+    ),
+)
+async def enrich_camera(
+    camera_id: UUID,
+    principal: Principal = Depends(require_scope("cameras:write")),
+    session: AsyncSession = Depends(get_session),
+    enricher: StreamEnricher = Depends(get_enricher),
+) -> EnrichmentReport:
+    camera = await session.get(Camera, camera_id)
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    if not principal.may_write_department(camera.department_id):
+        raise HTTPException(
+            status_code=403, detail="Not permitted to write to this department"
+        )
+
+    outcomes = await MetadataService(session, enricher).enrich([camera], actor=principal)
+    await session.commit()
+    return _enrichment_report(outcomes)
+
+
+@router.post(
+    "/enrich",
+    response_model=EnrichmentReport,
+    summary="Derive metadata for a filtered set of cameras",
+    description=(
+        "Same derivation applied in bulk. `limit` is capped because each camera "
+        "costs one manifest fetch and one segment decode against the source."
+    ),
+)
+async def enrich_cameras(
+    filters: CameraFilter = Depends(camera_filter),
+    limit: int = Query(50, ge=1, le=500),
+    principal: Principal = Depends(require_scope("cameras:write")),
+    session: AsyncSession = Depends(get_session),
+    enricher: StreamEnricher = Depends(get_enricher),
+) -> EnrichmentReport:
+    repo = CameraRepository(session)
+    rows = await repo.list(filters, limit=limit, offset=0)
+    # Filtering after the query rather than in it: a dept_admin asking for a wider
+    # set gets what they may write, not a 403 for the whole request.
+    writable = [c for c in rows if principal.may_write_department(c.department_id)]
+
+    outcomes = await MetadataService(session, enricher).enrich(
+        list(writable), actor=principal
+    )
+    await session.commit()
+    return _enrichment_report(outcomes)
