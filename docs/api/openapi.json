@@ -1206,6 +1206,157 @@
         "title": "ConnectorOut",
         "type": "object"
       },
+      "CoverageRunRead": {
+        "properties": {
+          "assumed_omnidirectional_count": {
+            "title": "Assumed Omnidirectional Count",
+            "type": "integer"
+          },
+          "boundary_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary Id"
+          },
+          "boundary_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary Name"
+          },
+          "camera_count": {
+            "title": "Camera Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "district_located_camera_count": {
+            "default": 0,
+            "title": "District Located Camera Count",
+            "type": "integer"
+          },
+          "effective_coverage_pct": {
+            "title": "Effective Coverage Pct",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hex_edge_m": {
+            "title": "Hex Edge M",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "installed_coverage_pct": {
+            "title": "Installed Coverage Pct",
+            "type": "number"
+          },
+          "online_camera_count": {
+            "title": "Online Camera Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_cells": {
+            "title": "Total Cells",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "boundary_id",
+          "boundary_name",
+          "status",
+          "hex_edge_m",
+          "total_cells",
+          "installed_coverage_pct",
+          "effective_coverage_pct",
+          "camera_count",
+          "online_camera_count",
+          "assumed_omnidirectional_count",
+          "created_at",
+          "finished_at",
+          "error"
+        ],
+        "title": "CoverageRunRead",
+        "type": "object"
+      },
+      "CoverageRunRequest": {
+        "properties": {
+          "boundary_id": {
+            "description": "District or taluka to analyse.",
+            "format": "uuid",
+            "title": "Boundary Id",
+            "type": "string"
+          },
+          "covered_threshold": {
+            "default": 0.6,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Covered Threshold",
+            "type": "number"
+          },
+          "gap_threshold": {
+            "default": 0.2,
+            "exclusiveMaximum": 1.0,
+            "minimum": 0.0,
+            "title": "Gap Threshold",
+            "type": "number"
+          },
+          "hex_edge_m": {
+            "default": 100.0,
+            "maximum": 2000.0,
+            "minimum": 25.0,
+            "title": "Hex Edge M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "boundary_id"
+        ],
+        "title": "CoverageRunRequest",
+        "type": "object"
+      },
       "CredentialIn": {
         "properties": {
           "description": {
@@ -2626,6 +2777,310 @@
         "summary": "Pull a source catalogue and onboard it",
         "tags": [
           "connectors"
+        ]
+      }
+    },
+    "/api/v1/coverage/estimate": {
+      "get": {
+        "description": "Lets a client pick a workable resolution before committing to a run.",
+        "operationId": "estimate_api_v1_coverage_estimate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "boundary_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Boundary Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hex_edge_m",
+            "required": false,
+            "schema": {
+              "default": 150.0,
+              "maximum": 5000,
+              "minimum": 25,
+              "title": "Hex Edge M",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "title": "Response Estimate Api V1 Coverage Estimate Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cell count for an AOI without running the analysis",
+        "tags": [
+          "coverage"
+        ]
+      }
+    },
+    "/api/v1/coverage/runs": {
+      "get": {
+        "operationId": "list_runs_api_v1_coverage_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageRunRead"
+                  },
+                  "title": "Response List Runs Api V1 Coverage Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent runs",
+        "tags": [
+          "coverage"
+        ]
+      },
+      "post": {
+        "description": "Tessellates the boundary into hexagons and measures each against the union of camera footprints, twice: over all cameras (installed coverage) and over online cameras only (effective coverage). The difference is coverage lost to outages -- cameras that exist but are not watching.",
+        "operationId": "create_run_api_v1_coverage_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverageRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run a gap analysis over one district or taluka",
+        "tags": [
+          "coverage"
+        ]
+      }
+    },
+    "/api/v1/coverage/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_v1_coverage_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "coverage"
+        ]
+      }
+    },
+    "/api/v1/coverage/runs/{run_id}/report.html": {
+      "get": {
+        "operationId": "report_api_v1_coverage_runs__run_id__report_html_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Printable gap-analysis report",
+        "tags": [
+          "coverage"
+        ]
+      }
+    },
+    "/api/v1/coverage/runs/{run_id}/tiles/{z}/{x}/{y}.mvt": {
+      "get": {
+        "operationId": "coverage_tile_api_v1_coverage_runs__run_id__tiles__z___x___y__mvt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "maximum": 22,
+              "minimum": 0,
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Coverage cells as a vector tile layer",
+        "tags": [
+          "coverage"
         ]
       }
     },

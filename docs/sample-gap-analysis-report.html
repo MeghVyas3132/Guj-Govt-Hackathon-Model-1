@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gap Analysis — Bhavnagar</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+          margin: 0; color: #1e293b; background: #fff; }
+  .page { max-width: 860px; margin: 0 auto; padding: 48px 32px 72px; }
+  header { border-bottom: 2px solid #0f2d5e; padding-bottom: 16px; margin-bottom: 28px; }
+  .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+              color: #0f2d5e; font-weight: 700; }
+  h1 { font-size: 26px; margin: 6px 0 4px; }
+  .sub { color: #64748b; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+  .tile { border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
+  .tile .label { font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+                  color: #64748b; font-weight: 600; }
+  .tile .value { font-size: 30px; font-weight: 700; margin: 6px 0 2px;
+                  font-variant-numeric: tabular-nums; }
+  .tile .foot { font-size: 11px; color: #64748b; }
+  .delta { background: #fffbeb; border-color: #fde68a; }
+  .delta .value { color: #b45309; }
+  h2 { font-size: 15px; margin: 32px 0 10px; }
+  p { font-size: 14px; line-height: 1.65; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+  th { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #64748b; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .method { background: #f8fafc; border-left: 3px solid #0f2d5e;
+             padding: 18px 22px; font-size: 13px; line-height: 1.6; margin-top: 8px; }
+  .method h2 { margin-top: 0; }
+  .method li { margin-bottom: 7px; }
+  .warn { background: #fef2f2; border-left-color: #dc2626; }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0;
+            font-size: 11px; color: #94a3b8; }
+  @media print { .page { padding: 16px; } .tile { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">Sentinel CCTV Registry &middot; Coverage gap analysis</div>
+    <h1>Bhavnagar</h1>
+    <p class="sub">Run 01acc1fd-135f-42cb-b632-b1d9753fa3c7 &middot; 01 September 2026, 08:04 UTC &middot; hexagon edge 500&nbsp;m
+       &middot; 11,843 cells analysed</p>
+  </header>
+
+  <div class="grid">
+    <div class="tile">
+      <div class="label">Installed coverage</div>
+      <div class="value">4.3%</div>
+      <div class="foot">all 4,305 cameras</div>
+    </div>
+    <div class="tile">
+      <div class="label">Effective coverage</div>
+      <div class="value">2.7%</div>
+      <div class="foot">2,671 currently online</div>
+    </div>
+    <div class="tile delta">
+      <div class="label">Lost to outages</div>
+      <div class="value">1.6<span style="font-size:18px">pp</span></div>
+      <div class="foot">1,634 cameras down</div>
+    </div>
+  </div>
+
+  <h2>What this says</h2>
+  <p>
+    Bhavnagar has cameras installed to cover <strong>4.3%</strong> of its
+    area under the assumptions below. Because <strong>1,634</strong> of
+    <strong>4,305</strong> cameras are currently offline, only
+    <strong>2.7%</strong> is actually being watched right now &mdash; a live
+    shortfall of <strong>1.6 percentage points</strong>.
+    Restoring those 1,634 cameras recovers that coverage without installing a single new device.
+  </p>
+
+  <h2>Cells by coverage band</h2>
+  <table>
+    <thead><tr><th>Band</th><th>Definition</th><th class="num">Cells</th>
+      <th class="num">Share</th></tr></thead>
+    <tbody><tr><td><strong>covered</strong></td><td>at or above the covered threshold</td><td class="num">10</td><td class="num">0.1%</td></tr><tr><td><strong>partial</strong></td><td>between the gap and covered thresholds</td><td class="num">1,048</td><td class="num">8.8%</td></tr><tr><td><strong>gap</strong></td><td>below the gap threshold</td><td class="num">10,785</td><td class="num">91.1%</td></tr></tbody>
+  </table>
+
+  <h2>Where repair recovers the most</h2>
+  <p class="sub" style="margin-top:-4px">
+    Cells with coverage on paper that nothing is currently watching, worst first.
+    These are repair decisions, not purchase decisions.
+  </p>
+  <table>
+    <thead><tr><th>#</th><th class="num">Installed</th><th class="num">Effective</th>
+      <th class="num">Lost</th><th class="num">Cameras reaching cell</th></tr></thead>
+    <tbody><tr><td>1</td><td class="num">80.1%</td><td class="num">0.0%</td><td class="num">80.1%</td><td class="num">1</td></tr><tr><td>2</td><td class="num">68.2%</td><td class="num">0.0%</td><td class="num">68.2%</td><td class="num">1</td></tr><tr><td>3</td><td class="num">65.2%</td><td class="num">0.0%</td><td class="num">65.2%</td><td class="num">1</td></tr><tr><td>4</td><td class="num">62.8%</td><td class="num">0.0%</td><td class="num">62.8%</td><td class="num">1</td></tr><tr><td>5</td><td class="num">60.2%</td><td class="num">0.0%</td><td class="num">60.2%</td><td class="num">1</td></tr><tr><td>6</td><td class="num">51.0%</td><td class="num">0.0%</td><td class="num">51.0%</td><td class="num">1</td></tr><tr><td>7</td><td class="num">49.0%</td><td class="num">0.0%</td><td class="num">49.0%</td><td class="num">3</td></tr><tr><td>8</td><td class="num">48.3%</td><td class="num">0.0%</td><td class="num">48.3%</td><td class="num">1</td></tr><tr><td>9</td><td class="num">45.4%</td><td class="num">0.0%</td><td class="num">45.4%</td><td class="num">2</td></tr><tr><td>10</td><td class="num">44.3%</td><td class="num">0.0%</td><td class="num">44.3%</td><td class="num">3</td></tr><tr><td>11</td><td class="num">43.0%</td><td class="num">0.0%</td><td class="num">43.0%</td><td class="num">2</td></tr><tr><td>12</td><td class="num">41.4%</td><td class="num">0.0%</td><td class="num">41.4%</td><td class="num">2</td></tr><tr><td>13</td><td class="num">41.3%</td><td class="num">0.0%</td><td class="num">41.3%</td><td class="num">3</td></tr><tr><td>14</td><td class="num">37.9%</td><td class="num">0.0%</td><td class="num">37.9%</td><td class="num">1</td></tr><tr><td>15</td><td class="num">36.7%</td><td class="num">0.0%</td><td class="num">36.7%</td><td class="num">2</td></tr></tbody>
+  </table>
+  <p class="sub">A further <strong>6,083</strong> cells (51% of the area) have no camera reaching them at all. Those are gaps no repair can close.</p>
+
+  
+
+  <div class="method">
+    <h2>Method, and what it cannot tell you</h2>
+    <p>
+      The boundary is tessellated into hexagons of 500&nbsp;m edge length. Each
+      camera contributes a footprint: types marked omnidirectional contribute a full
+      circle of their nominal range, and directional types a sector spanning their
+      recorded bearing plus or minus half their field of view. Ranges and fields of view
+      come from the camera-type vocabulary, so they can be corrected without changing
+      code. A cell's coverage is the area of its intersection with the union of all
+      footprints, divided by the cell area. Cells at or above 60% are counted
+      covered, at or above 20% partial, and below that a gap.
+    </p>
+    <p>This estimate is deliberately conservative about what it claims. It is:</p>
+    <ul>
+      <li><strong>Two-dimensional.</strong> Elevation is not modelled.</li>
+      <li><strong>Without terrain or building occlusion.</strong> A wall between a camera
+          and a cell does not reduce the estimate, so real coverage is <em>lower</em>
+          than shown here.</li>
+      <li><strong>Based on nominal range</strong> per camera type, not on optics, sensor
+          size, mounting height or lighting.</li>
+      <li><strong>Dependent on the recorded bearing.</strong> <strong>70</strong> directional cameras here have no recorded azimuth or field of view and were treated as omnidirectional, which <em>overstates</em> their contribution. Recording bearings for those cameras is the cheapest way to make this report more accurate.</li>
+    </ul>
+    <p>
+      Treat these figures as a comparative planning aid &mdash; which zones are worse
+      than others, and how much is recoverable by repair rather than purchase &mdash;
+      not as a measurement of what any individual camera can see.
+    </p>
+  </div>
+
+  <footer>
+    Generated by the Sentinel CCTV Registry from run 01acc1fd-135f-42cb-b632-b1d9753fa3c7.
+    Figures reflect camera status at the time of the run.
+  </footer>
+</div>
+</body>
+</html>

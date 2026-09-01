@@ -127,3 +127,32 @@ class TileService:
         # ST_AsMVT is an aggregate: over zero rows it returns NULL, not empty bytes.
         # The router turns the empty result into a 204.
         return bytes(result.scalar_one() or b"")
+
+
+_COVERAGE_TEMPLATE = """
+    WITH bounds AS (SELECT ST_TileEnvelope(:z, :x, :y) AS merc)
+    SELECT ST_AsMVT(tile, 'coverage', 4096, 'geom') FROM (
+        SELECT
+            ST_AsMVTGeom(
+                ST_Transform(cc.geom::geometry, 3857), bounds.merc, 4096, 64, true
+            ) AS geom,
+            cc.classification,
+            round(cc.installed_fraction::numeric, 3)::float AS installed_fraction,
+            round(cc.effective_fraction::numeric, 3)::float AS effective_fraction,
+            cc.camera_count
+        FROM coverage_cells cc, bounds
+        WHERE cc.run_id = :run_id
+          AND ST_Transform(cc.geom::geometry, 3857) && bounds.merc
+    ) AS tile
+"""
+
+
+class CoverageTileService:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def tile(self, run_id, z: int, x: int, y: int) -> bytes:
+        result = await self.session.execute(
+            text(_COVERAGE_TEMPLATE), {"run_id": run_id, "z": z, "x": x, "y": y}
+        )
+        return bytes(result.scalar_one() or b"")

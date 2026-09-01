@@ -288,3 +288,47 @@ async def test_a_surveyed_camera_is_not_counted_as_district_located(
     )
     assert run.camera_count == 1
     assert run.district_located_camera_count == 0
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_run_is_refused_before_it_starts(
+    session, small_district, seeded_department
+):
+    """Kachchh at the 25m floor is millions of cells. Refusing up front with the
+    edge length that would work beats a request that appears to hang."""
+    from app.services.coverage import CoverageTooLargeError
+
+    with pytest.raises(CoverageTooLargeError) as exc:
+        await CoverageService(session).run(
+            CoverageRunRequest(boundary_id=small_district.id, hex_edge_m=25),
+            max_cells=100,
+        )
+
+    message = str(exc.value)
+    assert "cells" in message
+    # It must say what to do, not merely that it declined.
+    assert "hex_edge_m" in message
+
+
+@pytest.mark.asyncio
+async def test_the_estimate_is_close_to_the_real_cell_count(
+    session, small_district, seeded_department
+):
+    """The guard is only useful if its estimate tracks reality."""
+    service = CoverageService(session)
+    estimate = await service.estimate_cells(small_district.id, 150)
+    run = await service.run(
+        CoverageRunRequest(boundary_id=small_district.id, hex_edge_m=150)
+    )
+    assert 0.4 * estimate <= run.total_cells <= 2.5 * estimate
+
+
+@pytest.mark.asyncio
+async def test_a_run_within_the_budget_proceeds(
+    session, small_district, seeded_department
+):
+    run = await CoverageService(session).run(
+        CoverageRunRequest(boundary_id=small_district.id, hex_edge_m=150),
+        max_cells=100_000,
+    )
+    assert run.status == "done"

@@ -180,6 +180,20 @@ _CAMERA_STATS = text(
 METRES_PER_DEGREE = 111_320.0
 
 
+class CoverageTooLargeError(ValueError):
+    """Raised when a run would produce more cells than the budget allows."""
+
+
+# A hexagon of edge e covers 3*sqrt(3)/2 * e^2. Used to estimate the cell count
+# before committing to a run that could take minutes.
+_HEX_AREA_FACTOR = 2.598076211353316
+
+# Beyond this a run stops being interactive. Kachchh at the 25m floor is roughly
+# 26 million cells; a request that appears to hang is worse than one that declines
+# and says which edge length would work.
+DEFAULT_MAX_CELLS = 250_000
+
+
 class CoverageService:
     """Grid-based coverage estimation.
 
@@ -198,10 +212,43 @@ class CoverageService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def run(self, request: CoverageRunRequest) -> CoverageRun:
+    async def estimate_cells(self, boundary_id, hex_edge_m: float) -> int:
+        """Approximate cell count for an AOI, without tessellating it."""
+        area_m2 = (
+            await self.session.execute(
+                text("SELECT ST_Area(geom) FROM admin_boundaries WHERE id = :bid"),
+                {"bid": boundary_id},
+            )
+        ).scalar_one_or_none()
+        if not area_m2:
+            return 0
+        return int(area_m2 / (_HEX_AREA_FACTOR * hex_edge_m**2))
+
+    async def run(
+        self,
+        request: CoverageRunRequest,
+        max_cells: int = DEFAULT_MAX_CELLS,
+    ) -> CoverageRun:
         boundary = await self.session.get(AdminBoundary, request.boundary_id)
         if boundary is None:
             raise ValueError(f"Boundary {request.boundary_id} not found")
+
+        estimated = await self.estimate_cells(boundary.id, request.hex_edge_m)
+        if estimated > max_cells:
+            # Suggest the edge that lands just inside the budget, so the caller has
+            # a working next step rather than a refusal.
+            suggested = int(
+                (
+                    (estimated * _HEX_AREA_FACTOR * request.hex_edge_m**2)
+                    / (max_cells * _HEX_AREA_FACTOR)
+                )
+                ** 0.5
+            )
+            raise CoverageTooLargeError(
+                f"{boundary.name} at hex_edge_m={request.hex_edge_m:.0f} would produce "
+                f"about {estimated:,} cells, over the {max_cells:,} budget. "
+                f"Retry with hex_edge_m of at least {suggested + 1}."
+            )
 
         run = CoverageRun(
             boundary_id=boundary.id,
@@ -269,6 +316,60 @@ class CoverageService:
         run.finished_at = datetime.now(UTC)
         await self.session.commit()
         return run
+
+    async def classification_counts(self, run_id) -> dict[str, int]:
+        """How many cells fell into each band, for the report's headline table."""
+        rows = (
+            await self.session.execute(
+                text(
+                    "SELECT classification, count(*) FROM coverage_cells "
+                    "WHERE run_id = :run_id GROUP BY 1"
+                ),
+                {"run_id": run_id},
+            )
+        ).all()
+        return {row[0]: row[1] for row in rows}
+
+    async def outage_cells(self, run_id, limit: int = 15) -> list[dict]:
+        """Cells where coverage exists on paper but nothing is watching.
+
+        Ranking by the installed-minus-effective gap answers the only question in
+        this report that can be acted on this week: which places a repair crew
+        should visit first. A list of cells with no coverage at all is a purchase
+        decision, and there are usually thousands of them.
+        """
+        rows = (
+            await self.session.execute(
+                text(
+                    "SELECT installed_fraction, effective_fraction, camera_count, "
+                    "       installed_fraction - effective_fraction AS lost "
+                    "FROM coverage_cells "
+                    "WHERE run_id = :run_id AND installed_fraction > effective_fraction "
+                    "ORDER BY lost DESC LIMIT :limit"
+                ),
+                {"run_id": run_id, "limit": limit},
+            )
+        ).all()
+        return [
+            {
+                "installed_fraction": float(r[0]),
+                "effective_fraction": float(r[1]),
+                "camera_count": int(r[2]),
+                "lost": float(r[3]),
+            }
+            for r in rows
+        ]
+
+    async def zero_coverage_cells(self, run_id) -> int:
+        return (
+            await self.session.execute(
+                text(
+                    "SELECT count(*) FROM coverage_cells "
+                    "WHERE run_id = :run_id AND installed_fraction = 0"
+                ),
+                {"run_id": run_id},
+            )
+        ).scalar_one()
 
     async def worst_cells(self, run_id: UUID, limit: int = 20) -> list[dict]:
         """The emptiest gap cells of a run, for the report's ranked table."""
