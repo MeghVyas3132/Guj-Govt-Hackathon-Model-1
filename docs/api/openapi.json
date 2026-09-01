@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "AliasIn": {
+        "properties": {
+          "alias": {
+            "title": "Alias",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alias"
+        ],
+        "title": "AliasIn",
+        "type": "object"
+      },
+      "AliasRead": {
+        "properties": {
+          "alias": {
+            "title": "Alias",
+            "type": "string"
+          },
+          "boundary_id": {
+            "format": "uuid",
+            "title": "Boundary Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alias",
+          "boundary_id",
+          "source"
+        ],
+        "title": "AliasRead",
+        "type": "object"
+      },
       "AuthConfig": {
         "description": "How to authenticate to a source.\n\n`name` is the cookie or header name. `credential_ref` names a row in\n`credentials` -- never the secret itself, so config stays safe to read.",
         "properties": {
@@ -94,6 +142,52 @@
           "file"
         ],
         "title": "Body_preview_api_v1_onboarding_preview_post",
+        "type": "object"
+      },
+      "BoundaryRead": {
+        "properties": {
+          "area_km2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Km2"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "level"
+        ],
+        "title": "BoundaryRead",
         "type": "object"
       },
       "CameraCreate": {
@@ -2187,6 +2281,152 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/boundaries": {
+      "get": {
+        "operationId": "list_boundaries_api_v1_boundaries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "default": "district",
+              "title": "Level",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BoundaryRead"
+                  },
+                  "title": "Response List Boundaries Api V1 Boundaries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List boundaries",
+        "tags": [
+          "boundaries"
+        ]
+      }
+    },
+    "/api/v1/boundaries/{boundary_id}/aliases": {
+      "get": {
+        "operationId": "list_aliases_api_v1_boundaries__boundary_id__aliases_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "boundary_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Boundary Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AliasRead"
+                  },
+                  "title": "Response List Aliases Api V1 Boundaries  Boundary Id  Aliases Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Aliases",
+        "tags": [
+          "boundaries"
+        ]
+      },
+      "post": {
+        "description": "Adding a place name is a row, not a deploy. `source` records how the mapping was established so a lookup is never mistaken for a guess.",
+        "operationId": "create_alias_api_v1_boundaries__boundary_id__aliases_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "boundary_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Boundary Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliasIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AliasRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Teach the geocoder a new place name",
+        "tags": [
+          "boundaries"
+        ]
+      }
+    },
     "/api/v1/cameras": {
       "get": {
         "operationId": "list_cameras_api_v1_cameras_get",

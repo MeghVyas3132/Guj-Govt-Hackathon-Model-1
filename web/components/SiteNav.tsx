@@ -5,6 +5,7 @@ import Link from "next/link";
 const LINKS: [string, string][] = [
   ["/map", "Map"],
   ["/health", "Health"],
+  ["/coverage", "Coverage"],
 ];
 
 export function SiteNav() {
