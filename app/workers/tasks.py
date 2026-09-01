@@ -11,8 +11,10 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.enums import StreamProtocol
 from app.models.camera import Camera
+from app.models.source_connector import SourceConnector
 from app.models.stream_endpoint import StreamEndpoint
 from app.schemas.health import HealthObservationIn
+from app.services.credentials import CredentialResolver
 from app.services.health import HealthService
 from app.services.probe import HlsProbe, ProbeResult
 
@@ -37,13 +39,18 @@ async def probe_cameras(
     passes neither argument and gets the real ones.
     """
     semaphore = asyncio.Semaphore(PROBE_CONCURRENCY)
-    probe = probe or HlsProbe(session_cookie=ctx.get("sentinel_cookie"))
+    probe = probe or HlsProbe()
     session_factory = session_factory or SessionLocal
 
     async with session_factory() as session:
+        # Each endpoint's auth comes from the connector that owns its department,
+        # so a fleet spanning several sources with different schemes probes correctly.
         stmt = (
-            select(Camera, StreamEndpoint)
+            select(Camera, StreamEndpoint, SourceConnector)
             .join(StreamEndpoint, StreamEndpoint.camera_id == Camera.id)
+            .outerjoin(
+                SourceConnector, SourceConnector.department_id == Camera.department_id
+            )
             .where(
                 StreamEndpoint.protocol == StreamProtocol.HLS.value,
                 Camera.is_active,
@@ -60,13 +67,29 @@ async def probe_cameras(
         # concurrency-safe: letting gathered tasks each call flush() raises
         # "Session is already flushing" as soon as two overlap. Probing is the slow
         # part and stays concurrent; the writes are serialised afterwards.
-        async def check(
-            camera: Camera, endpoint: StreamEndpoint
-        ) -> tuple[Camera, ProbeResult]:
-            async with semaphore:
-                return camera, await probe.check(endpoint.url)
+        resolver = CredentialResolver(session)
 
-        probed = await asyncio.gather(*(check(c, e) for c, e in pairs))
+        async def check(
+            camera: Camera, endpoint: StreamEndpoint, connector: SourceConnector | None
+        ) -> tuple[Camera, ProbeResult]:
+            secret = cookie_name = header_name = None
+            if endpoint.requires_auth and endpoint.credential_ref:
+                secret = await resolver.resolve(endpoint.credential_ref)
+                auth = (connector.config or {}).get("auth", {}) if connector else {}
+                if auth.get("type") == "cookie":
+                    cookie_name = auth.get("name")
+                elif auth.get("type") == "header":
+                    header_name = auth.get("name")
+            async with semaphore:
+                result = await probe.check(
+                    endpoint.url,
+                    secret=secret,
+                    cookie_name=cookie_name,
+                    header_name=header_name,
+                )
+            return camera, result
+
+        probed = await asyncio.gather(*(check(c, e, k) for c, e, k in pairs))
 
         service = HealthService(session)
         changed = 0

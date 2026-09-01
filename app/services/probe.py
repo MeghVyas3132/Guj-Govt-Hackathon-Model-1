@@ -29,20 +29,33 @@ class HlsProbe:
         self,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 10.0,
-        session_cookie: str | None = None,
     ) -> None:
         self.transport = transport
         self.timeout = timeout
-        self.session_cookie = session_cookie
 
-    async def check(self, url: str) -> ProbeResult:
-        cookies = {"session": self.session_cookie} if self.session_cookie else None
+    async def check(
+        self,
+        url: str,
+        secret: str | None = None,
+        cookie_name: str | None = None,
+        header_name: str | None = None,
+    ) -> ProbeResult:
+        """Probe one endpoint.
+
+        Auth is supplied per call rather than held on the prober: each stream
+        endpoint carries its own credential_ref, and the scheme comes from the
+        connector that owns it. A single shared cookie was a Sentinel-shaped
+        assumption that does not survive a second department.
+        """
+        cookies = {cookie_name: secret} if (secret and cookie_name) else None
+        headers = {header_name: secret} if (secret and header_name) else None
         started = time.perf_counter()
         try:
             async with httpx.AsyncClient(
                 transport=self.transport,
                 timeout=self.timeout,
                 cookies=cookies,
+                headers=headers,
                 # follow_redirects=False is load-bearing, not a default left alone: the
                 # 3xx is the signal. Followed, the login page would come back 200 with
                 # no #EXTINF in it and every camera behind an expired session would be

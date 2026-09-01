@@ -14,11 +14,28 @@ async def districts(session):
         "Junagadh": Polygon([(70.2, 21.3), (70.7, 21.3), (70.7, 21.8), (70.2, 21.8)]),
         "Navsari": Polygon([(72.8, 20.8), (73.2, 20.8), (73.2, 21.1), (72.8, 21.1)]),
     }
+    from app.models.source_connector import PlaceAlias
+
+    boundaries = {}
     for name, poly in shapes.items():
+        boundary = AdminBoundary(
+            level="district", name=name, geom=from_shape(MultiPolygon([poly]), srid=4326)
+        )
+        session.add(boundary)
+        boundaries[name] = boundary
+    await session.flush()
+
+    # Aliases are rows now, not a dict in code.
+    for alias, district in [
+        ("ahmedabad", "Ahmadabad"), ("bilimora", "Navsari"),
+        ("chiman bhai", "Ahmadabad"), ("ongc", "Ahmadabad"),
+        # "O.N.G.C." normalises to "o n g c", so the spaced form is its own alias.
+        ("o n g c", "Ahmadabad"),
+        ("delight", "Ahmadabad"), ("suvidha park", "Ahmadabad"),
+        ("kheram", "Navsari"), ("dhanori", "Navsari"), ("tankal", "Navsari"),
+    ]:
         session.add(
-            AdminBoundary(
-                level="district", name=name, geom=from_shape(MultiPolygon([poly]), srid=4326)
-            )
+            PlaceAlias(alias=alias, boundary_id=boundaries[district].id, source="test")
         )
     await session.commit()
 

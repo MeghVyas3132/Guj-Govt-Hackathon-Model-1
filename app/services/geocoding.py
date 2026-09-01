@@ -19,60 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin_boundary import AdminBoundary
-
-# Towns, talukas and landmarks that name no district themselves, mapped to the district
-# name as spelled in the 2011 Census boundary data. Extend this rather than loosening
-# the matching: a wrong district is worse than no match.
-PLACE_ALIASES: dict[str, str] = {
-    # Common spellings that differ from the census form
-    "ahmedabad": "Ahmadabad",
-    "amdavad": "Ahmadabad",
-    "mehsana": "Mahesana",
-    "dahod": "Dohad",
-    "banaskantha": "Banas Kantha",
-    "banas kantha": "Banas Kantha",
-    "sabarkantha": "Sabar Kantha",
-    "panchmahal": "Panch Mahals",
-    "kutch": "Kachchh",
-    "kuchchh": "Kachchh",
-    "dangs": "The Dangs",
-    # Towns and talukas
-    "bilimora": "Navsari",
-    "gandevi": "Navsari",
-    "khapariya": "Navsari",
-    "khaparia": "Navsari",
-    "gandhidham": "Kachchh",
-    "bhuj": "Kachchh",
-    "adalaj": "Gandhinagar",
-    "dehgam": "Gandhinagar",
-    "kalol": "Gandhinagar",
-    "veraval": "Gir Somnath",
-    "dolatpara": "Junagadh",
-    "timbavadi": "Junagadh",
-    "majewadi": "Junagadh",
-    # Ahmedabad landmarks that name no city
-    "chiman bhai": "Ahmadabad",
-    "chimanbhai": "Ahmadabad",
-    "janpath": "Ahmadabad",
-    "paldi": "Ahmadabad",
-    "visat": "Ahmadabad",
-    "cn vidhyalaya": "Ahmadabad",
-    "vastrapur": "Ahmadabad",
-    "sarkhej": "Ahmadabad",
-    # Resolved from the live Sentinel catalogue. Each was looked up rather than
-    # inferred from position in the list, since a wrong district puts a police
-    # camera in the wrong place on the map.
-    "o n g c": "Ahmadabad",  # ONGC office, Chandkheda, Ahmedabad
-    "ongc": "Ahmadabad",
-    "delight": "Ahmadabad",  # Delight, Ambawadi, Ahmedabad
-    "suvidha park": "Ahmadabad",  # Suvidha Park, Shahibagh, Ahmedabad
-    "mervada": "Banas Kantha",  # Morvada, Vav taluka; the "BK" prefix agrees
-    "morvada": "Banas Kantha",
-    "khergam": "Navsari",  # two Khergams exist, both in Navsari
-    "kheram": "Navsari",
-    "dhanori": "Navsari",  # Gandevi taluka -- the same taluka as cam19
-    "tankal": "Navsari",  # Chikhli taluka
-}
+from app.models.source_connector import PlaceAlias
 
 
 @dataclass(frozen=True)
@@ -100,6 +47,24 @@ class DistrictGeocoder:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._districts: dict[str, tuple[str, str]] | None = None
+        self._aliases: dict[str, str] | None = None
+
+    async def _load_aliases(self) -> dict[str, str]:
+        """alias -> boundary id, read from place_aliases.
+
+        Rows rather than a dict in code: a department whose cameras are named after
+        villages nobody here has heard of is onboarded by adding aliases, not by a
+        deploy. A wrong district puts a police camera in the wrong place, so an
+        unrecognised name still declines rather than guessing.
+        """
+        if self._aliases is None:
+            rows = (
+                await self.session.execute(
+                    select(PlaceAlias.alias, PlaceAlias.boundary_id)
+                )
+            ).all()
+            self._aliases = {_normalise(a): str(b) for a, b in rows}
+        return self._aliases
 
     async def _load(self) -> dict[str, tuple[str, str]]:
         if self._districts is None:
@@ -121,30 +86,33 @@ class DistrictGeocoder:
 
         haystack = f" {_normalise(text)} "
         districts = await self._load()
+        aliases = await self._load_aliases()
+        by_id = {bid: (bid, name) for _key, (bid, name) in districts.items()}
 
-        # Longest candidate first, so "banas kantha" is not beaten by a stray "banas",
+        # Longest candidate first, so "banas kantha" is not beaten by a stray "banas"
         # and a two-word alias wins over a one-word one.
-        candidates: list[tuple[str, str]] = [
-            (key, key) for key in districts
-        ] + [(alias, alias) for alias in PLACE_ALIASES]
-        candidates.sort(key=lambda pair: len(pair[0]), reverse=True)
+        candidates = sorted(
+            [(k, "district") for k in districts] + [(k, "alias") for k in aliases],
+            key=lambda pair: len(pair[0]),
+            reverse=True,
+        )
 
-        for needle, _ in candidates:
+        for needle, kind in candidates:
             if f" {needle} " not in haystack:
                 continue
-            district_name = PLACE_ALIASES.get(needle)
-            key = _normalise(district_name) if district_name else needle
-            found = districts.get(key)
+            found = (
+                by_id.get(aliases[needle])
+                if kind == "alias"
+                else districts.get(needle)
+            )
             if found is None:
-                # An alias pointing at a district this deployment has not loaded.
-                # Decline rather than fall through to a different one.
+                # An alias pointing at a boundary this deployment has not loaded.
+                # Decline rather than falling through to a different district.
                 continue
             district_id, canonical = found
             point = (
                 await self.session.execute(
                     select(
-                        # PointOnSurface, not Centroid: a concave district's centroid
-                        # can fall outside its own polygon and land in a neighbour.
                         func.ST_X(_representative_point()),
                         func.ST_Y(_representative_point()),
                     ).where(AdminBoundary.id == district_id)
