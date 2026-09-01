@@ -1743,6 +1743,82 @@
         "title": "EndpointRule",
         "type": "object"
       },
+      "EnrichmentReport": {
+        "properties": {
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "checked",
+          "updated",
+          "failed"
+        ],
+        "title": "EnrichmentReport",
+        "type": "object"
+      },
+      "EnrichmentResult": {
+        "description": "What derivation found for one camera.\n\n`metadata` is deliberately open: what a stream can tell us about itself\ndiffers by protocol and by gateway, and pinning it to a fixed shape here\nwould mean discarding whatever a future source volunteers.",
+        "properties": {
+          "camera_id": {
+            "title": "Camera Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "external_camera_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Camera Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "camera_id",
+          "updated"
+        ],
+        "title": "EnrichmentResult",
+        "type": "object"
+      },
       "ErrorDetail": {
         "properties": {
           "code": {
@@ -3896,6 +3972,168 @@
         ]
       }
     },
+    "/api/v1/cameras/enrich": {
+      "post": {
+        "description": "Same derivation applied in bulk. `limit` is capped because each camera costs one manifest fetch and one segment decode against the source.",
+        "operationId": "enrich_cameras_api_v1_cameras_enrich_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Free text over uid, name, address.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free text over uid, name, address.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_ids",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "title": "Department Ids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "camera_types",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Camera Types",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Statuses",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownership_classes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Ownership Classes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "district_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "District Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Derive metadata for a filtered set of cameras",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
     "/api/v1/cameras/export.csv": {
       "get": {
         "description": "The same filter as the list endpoint and the tiles, rendered as a spreadsheet a department can reconcile against its own records. An empty result still returns a header row.",
@@ -4314,6 +4552,82 @@
           }
         },
         "summary": "Change history for one camera",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/cameras/{camera_id}/enrich": {
+      "post": {
+        "description": "Reads the camera's HLS manifest and decodes one segment to establish codec, resolution and frame rate. Use this when a source catalogue supplies identifiers but no technical metadata, which is the common case.",
+        "operationId": "enrich_camera_api_v1_cameras__camera_id__enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Derive metadata from this camera's stream",
         "tags": [
           "cameras"
         ]
