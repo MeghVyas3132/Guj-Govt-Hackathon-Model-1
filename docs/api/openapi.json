@@ -1,6 +1,47 @@
 {
   "components": {
     "schemas": {
+      "AuthConfig": {
+        "description": "How to authenticate to a source.\n\n`name` is the cookie or header name. `credential_ref` names a row in\n`credentials` -- never the secret itself, so config stays safe to read.",
+        "properties": {
+          "credential_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Ref"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "type": {
+            "default": "none",
+            "enum": [
+              "none",
+              "cookie",
+              "header",
+              "bearer",
+              "basic"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "AuthConfig",
+        "type": "object"
+      },
       "BatchAck": {
         "properties": {
           "accepted": {
@@ -1045,6 +1086,155 @@
         "title": "Connectivity",
         "type": "string"
       },
+      "ConnectorConfig": {
+        "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/AuthConfig"
+          },
+          "catalogue_url": {
+            "title": "Catalogue Url",
+            "type": "string"
+          },
+          "endpoint_rules": {
+            "items": {
+              "$ref": "#/components/schemas/EndpointRule"
+            },
+            "title": "Endpoint Rules",
+            "type": "array"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "title": "Extra",
+            "type": "object"
+          },
+          "id_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Id Keys",
+            "type": "array"
+          },
+          "request_timeout_s": {
+            "default": 30.0,
+            "title": "Request Timeout S",
+            "type": "number"
+          },
+          "root_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Path"
+          }
+        },
+        "required": [
+          "catalogue_url"
+        ],
+        "title": "ConnectorConfig",
+        "type": "object"
+      },
+      "ConnectorIn": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/ConnectorConfig"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "department_id",
+          "config"
+        ],
+        "title": "ConnectorIn",
+        "type": "object"
+      },
+      "ConnectorOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "department_id",
+          "config",
+          "is_active"
+        ],
+        "title": "ConnectorOut",
+        "type": "object"
+      },
+      "CredentialIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "title": "CredentialIn",
+        "type": "object"
+      },
       "DepartmentCreate": {
         "properties": {
           "code": {
@@ -1119,6 +1309,66 @@
           "is_active"
         ],
         "title": "DepartmentRead",
+        "type": "object"
+      },
+      "EndpointRule": {
+        "description": "How to obtain one stream URL for a camera.\n\n`url_key` reads it from the catalogue entry and always wins where present --\nthe source is authoritative. `url_template` builds it when the catalogue omits\nURLs, as the Sentinel sandbox does.",
+        "properties": {
+          "credential_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Ref"
+          },
+          "is_primary": {
+            "default": false,
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/StreamProtocol"
+          },
+          "reachability": {
+            "$ref": "#/components/schemas/Reachability"
+          },
+          "requires_auth": {
+            "default": false,
+            "title": "Requires Auth",
+            "type": "boolean"
+          },
+          "url_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Key"
+          },
+          "url_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Template"
+          }
+        },
+        "required": [
+          "protocol",
+          "reachability"
+        ],
+        "title": "EndpointRule",
         "type": "object"
       },
       "ErrorDetail": {
@@ -2208,6 +2458,177 @@
         ]
       }
     },
+    "/api/v1/connectors": {
+      "get": {
+        "operationId": "list_connectors_api_v1_connectors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorOut"
+                  },
+                  "title": "Response List Connectors Api V1 Connectors Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Connectors",
+        "tags": [
+          "connectors"
+        ]
+      },
+      "post": {
+        "operationId": "create_connector_api_v1_connectors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Connector",
+        "tags": [
+          "connectors"
+        ]
+      }
+    },
+    "/api/v1/connectors/credentials": {
+      "post": {
+        "operationId": "upsert_credential_api_v1_connectors_credentials_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upsert Credential Api V1 Connectors Credentials Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Credential",
+        "tags": [
+          "connectors"
+        ]
+      }
+    },
+    "/api/v1/connectors/{code}/sync": {
+      "post": {
+        "description": "Reads the connector's catalogue and runs every entry through the same validation and normalization as a CSV upload. Idempotent: re-running produces no changes when nothing upstream has changed.",
+        "operationId": "sync_connector_api_v1_connectors__code__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cap for a smoke test.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cap for a smoke test.",
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull a source catalogue and onboard it",
+        "tags": [
+          "connectors"
+        ]
+      }
+    },
     "/api/v1/departments": {
       "get": {
         "operationId": "list_departments_api_v1_departments_get",
@@ -2558,59 +2979,6 @@
         "summary": "Fleet health counts",
         "tags": [
           "health"
-        ]
-      }
-    },
-    "/api/v1/onboarding/adapters/{adapter_code}/sync": {
-      "post": {
-        "description": "Reads the source's catalogue and runs every entry through the same validation and normalization as a CSV upload. Idempotent: re-running produces no changes when nothing upstream has changed.",
-        "operationId": "sync_adapter_api_v1_onboarding_adapters__adapter_code__sync_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "adapter_code",
-            "required": true,
-            "schema": {
-              "title": "Adapter Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "department_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Department Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IngestReport"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Pull a source catalogue and onboard it",
-        "tags": [
-          "onboarding"
         ]
       }
     },

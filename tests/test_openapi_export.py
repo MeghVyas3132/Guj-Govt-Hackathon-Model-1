@@ -22,6 +22,8 @@ def test_spec_documents_every_onboarding_path():
         "/api/v1/onboarding/import",
         "/api/v1/onboarding/bulk",
         "/api/v1/cameras/{camera_id}/streams",
+        "/api/v1/connectors",
+        "/api/v1/connectors/{code}/sync",
         "/api/v1/tiles/cameras/{z}/{x}/{y}.mvt",
     ):
         assert route in paths, f"{route} missing from the exported spec"

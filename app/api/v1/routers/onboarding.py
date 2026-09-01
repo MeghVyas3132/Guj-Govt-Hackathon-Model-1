@@ -4,10 +4,10 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.csv_adapter import CsvAdapter
-from app.adapters.sentinel_adapter import SentinelAdapter
 from app.core.db import get_session
 from app.core.enums import SourceType
 from app.models.department import Department
@@ -112,39 +112,15 @@ async def bulk(
     return await IngestionService(session).ingest(records, department, mode="commit")
 
 
+# The adapter sync route now lives on /connectors/{code}/sync, driven by a
+# source_connectors row rather than a hardcoded vendor name. This path is kept as
+# a redirect so anything already pointing at it keeps working.
 @router.post(
     "/adapters/{adapter_code}/sync",
-    response_model=IngestReport,
-    summary="Pull a source catalogue and onboard it",
-    description=(
-        "Reads the source's catalogue and runs every entry through the same "
-        "validation and normalization as a CSV upload. Idempotent: re-running "
-        "produces no changes when nothing upstream has changed."
-    ),
+    include_in_schema=False,
+    deprecated=True,
 )
-async def sync_adapter(
-    adapter_code: str,
-    department_id: UUID = Query(...),
-    session: AsyncSession = Depends(get_session),
-) -> IngestReport:
-    if adapter_code != SentinelAdapter.code:
-        raise HTTPException(status_code=404, detail=f"Unknown adapter {adapter_code!r}")
-
-    department = await _department(session, department_id)
-    adapter = SentinelAdapter(
-        catalogue_url=SENTINEL_CATALOGUE_URL,
-        session_cookie=os.environ.get("SENTINEL_SESSION_COOKIE"),
-        transport=_ADAPTER_TRANSPORT,
+async def sync_adapter_moved(adapter_code: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=f"/api/v1/connectors/{adapter_code}/sync", status_code=308
     )
-
-    try:
-        records = await adapter.fetch(department_id)
-    except httpx.HTTPError as exc:
-        # 502, not 500. On demo day this one digit is the difference between "the
-        # session cookie expired" and "the code is broken", and you get about five
-        # seconds to tell them apart.
-        raise HTTPException(
-            status_code=502, detail=f"Could not reach the source catalogue: {exc}"
-        ) from exc
-
-    return await IngestionService(session).ingest(records, department, mode="commit")
