@@ -49,8 +49,12 @@ DEPARTMENTS = [("POL", 0.34), ("MUN", 0.30), ("GSRTC", 0.16), ("HLTH", 0.12), ("
 _INSERT = text(
     """
 WITH pts AS (
-    SELECT (ST_Dump(ST_GeneratePoints(:geom, :n, :seed))).geom AS pt,
-           row_number() OVER () AS idx
+    -- ST_Dump goes in FROM, not the target list. A set-returning function in the
+    -- SELECT list is expanded *after* window functions are evaluated, so
+    -- row_number() OVER () returned 1 for every point -- and every camera in a
+    -- district ended up with an identical name, resolution and field of view.
+    SELECT dumped.geom AS pt, row_number() OVER () AS idx
+    FROM ST_Dump(ST_GeneratePoints(:geom, :n, :seed)) AS dumped
 ),
 rolled AS (
     SELECT pt, idx,

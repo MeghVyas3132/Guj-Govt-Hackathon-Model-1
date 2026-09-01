@@ -126,9 +126,9 @@ export default function ConnectorsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Source connectors</h1>
-      <p className="mb-6 text-sm text-slate-500">
+    <main className="mx-auto max-w-[56rem] p-6">
+      <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Source connectors</h1>
+      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         Onboarding a department&rsquo;s camera system is a row here plus a field mapping.
         No vendor name exists anywhere in the codebase — the config below describes
         the catalogue URL, how to authenticate, where the camera list sits in the
@@ -136,22 +136,22 @@ export default function ConnectorsPage() {
       </p>
 
       {error && (
-        <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] [background:var(--state-offline-bg)] [color:var(--state-offline-ink)]">
           {error}
         </p>
       )}
       {notice && (
-        <p className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p className="mb-4 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-online-ink)_30%,transparent)] [background:var(--state-online-bg)] [color:var(--state-online-ink)]">
           {notice}
         </p>
       )}
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-slate-500">
+        <h2 className="mb-3 text-[length:var(--text-lg)] font-semibold text-ink">
           Configured sources
         </h2>
         {connectors.length === 0 ? (
-          <p className="rounded border p-4 text-sm text-slate-400">
+          <p className="rounded-[6px] border border-line bg-surface p-4 text-sm text-ink-faint">
             No connectors yet.
           </p>
         ) : (
@@ -161,16 +161,16 @@ export default function ConnectorsPage() {
               return (
                 <li
                   key={connector.id}
-                  className="flex flex-wrap items-center gap-3 rounded border p-3"
+                  className="flex flex-wrap items-center gap-3 rounded-[6px] border border-line bg-surface p-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
                       <span className="font-mono">{connector.code}</span> — {connector.name}
                     </p>
-                    <p className="truncate text-xs text-slate-500">
+                    <p className="truncate text-[length:var(--text-xs)] text-ink-muted">
                       {String(connector.config.catalogue_url)}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-[length:var(--text-xs)] text-ink-faint">
                       auth: {auth.type ?? "none"}
                       {auth.name ? ` (${auth.name})` : ""} ·{" "}
                       {
@@ -182,7 +182,7 @@ export default function ConnectorsPage() {
                   <button
                     onClick={() => sync(connector.code)}
                     disabled={busy !== null}
-                    className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+                    className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)] disabled:opacity-40"
                   >
                     {busy === connector.code ? "Syncing…" : "Sync now"}
                   </button>
@@ -193,21 +193,21 @@ export default function ConnectorsPage() {
         )}
       </section>
 
-      <section className="mb-8 rounded border p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-slate-500">
+      <section className="mb-8 rounded-[6px] border border-line bg-surface p-4">
+        <h2 className="mb-3 text-[length:var(--text-lg)] font-semibold text-ink">
           Store a credential
         </h2>
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-[length:var(--text-xs)] text-ink-muted">
           Connector config references secrets by name and never contains one. The value
           is write-only — the API never returns it.
         </p>
         <form onSubmit={saveCredential} className="flex flex-wrap items-end gap-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+            <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
               Reference name
             </span>
             <input
-              className="rounded border px-3 py-2 text-sm"
+              className="rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               placeholder="vendor_key"
               required
               value={credential.name}
@@ -215,11 +215,11 @@ export default function ConnectorsPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+            <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
               Secret
             </span>
             <input
-              className="rounded border px-3 py-2 text-sm"
+              className="rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               type="password"
               required
               value={credential.value}
@@ -229,25 +229,25 @@ export default function ConnectorsPage() {
           <button
             type="submit"
             disabled={busy !== null}
-            className="rounded border px-4 py-2 text-sm font-medium disabled:opacity-40"
+            className="inline-flex h-8 items-center rounded-[4px] border border-line-strong bg-surface px-3 text-[length:var(--text-sm)] font-medium transition-colors duration-[var(--duration)] hover:bg-sunken disabled:opacity-40"
           >
             Store
           </button>
         </form>
       </section>
 
-      <section className="rounded border p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-slate-500">
+      <section className="rounded-[6px] border border-line bg-surface p-4">
+        <h2 className="mb-3 text-[length:var(--text-lg)] font-semibold text-ink">
           Add a source
         </h2>
         <form onSubmit={createConnector} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
                 Code
               </span>
               <input
-                className="w-full rounded border px-3 py-2 text-sm"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
                 placeholder="rto"
                 required
                 value={form.code}
@@ -255,22 +255,22 @@ export default function ConnectorsPage() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
                 Name
               </span>
               <input
-                className="w-full rounded border px-3 py-2 text-sm"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
                 Department
               </span>
               <select
-                className="w-full rounded border px-3 py-2 text-sm"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
                 required
                 value={form.department_id}
                 onChange={(e) => setForm({ ...form, department_id: e.target.value })}
@@ -286,16 +286,16 @@ export default function ConnectorsPage() {
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+            <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
               Config
             </span>
             <textarea
-              className="h-72 w-full rounded border p-3 font-mono text-xs"
+              className="h-72 w-full rounded-[6px] border border-line bg-surface p-3 font-mono text-xs"
               spellCheck={false}
               value={form.config}
               onChange={(e) => setForm({ ...form, config: e.target.value })}
             />
-            <span className="mt-1 block text-xs text-slate-400">
+            <span className="mt-1 block text-[length:var(--text-xs)] text-ink-faint">
               Validated on save, so a bad rule is caught now rather than mid-sync.
             </span>
           </label>
@@ -303,7 +303,7 @@ export default function ConnectorsPage() {
           <button
             type="submit"
             disabled={busy !== null}
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)] disabled:opacity-40"
           >
             {busy === "create" ? "Creating…" : "Create connector"}
           </button>

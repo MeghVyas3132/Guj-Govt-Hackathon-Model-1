@@ -92,10 +92,10 @@ export function CoverageControls({
   const overBudget = estimate ? !estimate.within_budget : false;
 
   return (
-    <div className="mb-6 rounded-lg border p-4">
+    <div className="mb-6 rounded-[6px] border border-line bg-surface p-4">
       <div className="flex flex-wrap items-end gap-5">
         <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+          <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
             District
           </span>
           <select
@@ -112,7 +112,7 @@ export function CoverageControls({
         </label>
 
         <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+          <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
             Hexagon edge · {edge} m
           </span>
           <input
@@ -129,7 +129,7 @@ export function CoverageControls({
         <button
           onClick={run}
           disabled={busy || !boundaryId || overBudget}
-          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)] disabled:opacity-40"
         >
           {busy ? "Running…" : "Run gap analysis"}
         </button>
@@ -137,7 +137,7 @@ export function CoverageControls({
 
       {estimate && (
         <p
-          className={`mt-3 text-xs ${overBudget ? "text-red-600" : "text-slate-500"}`}
+          className={`mt-3 text-xs ${overBudget ? "text-red-600" : "text-ink-muted"}`}
         >
           {estimate.estimated_cells.toLocaleString()} cells estimated
           {overBudget

@@ -3,7 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Button, Field, Input, Notice } from "@/components/ui";
 import { API, type CurrentUser, setSession } from "@/lib/session";
+
+const DEMO = [
+  ["root@gujarat.gov.in", "super admin", "everything"],
+  ["mun.admin@gujarat.gov.in", "dept admin", "writes its own department"],
+  ["analyst@gujarat.gov.in", "analyst", "reads and exports, cannot write"],
+  ["viewer@gujarat.gov.in", "viewer", "reads only"],
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,81 +35,86 @@ export default function LoginPage() {
         return;
       }
       const { access_token: accessToken } = await response.json();
-
       const me = await fetch(`${API}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      const user: CurrentUser = await me.json();
-
-      setSession(accessToken, user);
+      setSession(accessToken, (await me.json()) as CurrentUser);
       router.push("/map");
       router.refresh();
     } catch {
-      setError("Could not reach the registry.");
+      setError("Could not reach the registry. Is the API running on port 8000?");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="flex min-h-full items-center justify-center bg-slate-50 p-6">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-sm rounded-lg border bg-white p-6 shadow-sm"
-      >
-        <h1 className="text-lg font-semibold">Sentinel CCTV Registry</h1>
-        <p className="mb-6 text-xs text-slate-500">
-          Gujarat Police · Model 1 — Registry &amp; GIS Foundation
-        </p>
-
-        <label className="mb-3 block">
-          <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-            Email
-          </span>
-          <input
-            className="w-full rounded border px-3 py-2 text-sm"
-            type="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-
-        <label className="mb-4 block">
-          <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-            Password
-          </span>
-          <input
-            className="w-full rounded border px-3 py-2 text-sm"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-red-600">
-            {error}
+    <main className="flex min-h-full items-center justify-center p-6">
+      <div className="w-full max-w-[24rem]">
+        <div className="mb-6">
+          <h1 className="text-[length:var(--text-xl)] font-semibold text-ink">
+            Sentinel CCTV Registry
+          </h1>
+          <p className="mt-1 text-[length:var(--text-sm)] text-ink-muted">
+            Gujarat Police · Centralised registry and GIS foundation
           </p>
-        )}
+        </div>
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded bg-slate-900 py-2 text-sm font-medium text-white disabled:opacity-40"
+        <form
+          onSubmit={submit}
+          className="space-y-4 rounded-[6px] border border-line bg-surface p-5"
         >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+          <Field label="Email" required>
+            <Input
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
 
-        <p className="mt-5 border-t pt-4 text-xs text-slate-400">
-          Demo accounts — password <code>Sentinel@2026</code>
-          <br />
-          root@ · mun.admin@ · analyst@ · viewer@ (gujarat.gov.in)
-        </p>
-      </form>
+          <Field label="Password" required>
+            <Input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+
+          {error && <Notice tone="error">{error}</Notice>}
+
+          <Button type="submit" variant="primary" busy={busy} className="w-full justify-center">
+            {busy ? "Signing in" : "Sign in"}
+          </Button>
+        </form>
+
+        <div className="mt-5 rounded-[6px] border border-line bg-sunken p-4">
+          <p className="mb-2 text-[length:var(--text-xs)] font-medium text-ink-muted">
+            Demonstration accounts — password{" "}
+            <span className="font-mono">Sentinel@2026</span>
+          </p>
+          <ul className="space-y-1">
+            {DEMO.map(([address, role, can]) => (
+              <li key={address} className="text-[length:var(--text-xs)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(address);
+                    setPassword("Sentinel@2026");
+                  }}
+                  className="font-mono text-[var(--brand)] underline-offset-2 hover:underline"
+                >
+                  {address}
+                </button>
+                <span className="text-ink-faint"> — {role}, {can}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </main>
   );
 }

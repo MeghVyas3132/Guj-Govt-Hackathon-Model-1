@@ -98,15 +98,15 @@ export default function CameraDetailPage() {
 
   if (error) {
     return (
-      <main className="mx-auto max-w-4xl p-8">
-        <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      <main className="mx-auto max-w-[56rem] p-6">
+        <p className="rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] [background:var(--state-offline-bg)] [color:var(--state-offline-ink)]">
           {error}
         </p>
       </main>
     );
   }
 
-  if (!camera) return <main className="p-8 text-sm text-slate-400">Loading…</main>;
+  if (!camera) return <main className="p-8 text-sm text-ink-faint">Loading…</main>;
 
   const geocoded = camera.metadata?.geocode_precision === "district";
   const unmapped = Object.entries(camera.metadata ?? {}).filter(([k]) =>
@@ -114,18 +114,18 @@ export default function CameraDetailPage() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <Link href="/cameras" className="text-sm text-slate-500 hover:text-slate-900">
+    <main className="mx-auto max-w-[56rem] p-6">
+      <Link href="/cameras" className="text-[length:var(--text-sm)] text-ink-muted hover:text-ink">
         ← All cameras
       </Link>
 
-      <h1 className="mt-3 font-mono text-2xl font-semibold">{camera.camera_uid}</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="mt-3 font-mono text-[length:var(--text-xl)] font-semibold text-ink">{camera.camera_uid}</h1>
+      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         {camera.name ?? "Unnamed"} · {camera.camera_type} · {camera.current_status}
       </p>
 
       {geocoded && (
-        <p className="mb-6 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="mb-6 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-maintenance-ink)_30%,transparent)] [background:var(--state-maintenance-bg)] [color:var(--state-maintenance-ink)]">
           <strong>Position is district-level, not surveyed.</strong> It was derived
           from{" "}
           <span className="font-mono">
@@ -151,8 +151,8 @@ export default function CameraDetailPage() {
       )}
 
       <section className="mb-8">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Details</h2>
-        <dl className="grid gap-x-8 gap-y-2 rounded border p-4 text-sm sm:grid-cols-2">
+        <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">Details</h2>
+        <dl className="grid gap-x-8 gap-y-2 rounded-[6px] border border-line bg-surface p-4 text-sm sm:grid-cols-2">
           <Row label="External id" value={camera.external_camera_id} mono />
           <Row label="Source" value={camera.source_type} />
           <Row
@@ -178,21 +178,21 @@ export default function CameraDetailPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">
+        <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
           Stream endpoints
         </h2>
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-[length:var(--text-xs)] text-ink-muted">
           What the analytics layers call. Pick the endpoint whose reachability matches
           your network.
         </p>
         {streams.length === 0 ? (
-          <p className="rounded border p-4 text-sm text-slate-400">
+          <p className="rounded-[6px] border border-line bg-surface p-4 text-sm text-ink-faint">
             No endpoints registered for this camera.
           </p>
         ) : (
           <ul className="space-y-2">
             {streams.map((stream) => (
-              <li key={stream.id} className="rounded border p-3">
+              <li key={stream.id} className="rounded-[6px] border border-line bg-surface p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold uppercase">
                     {stream.protocol}
@@ -202,17 +202,17 @@ export default function CameraDetailPage() {
                       primary
                     </span>
                   )}
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                  <span className="rounded bg-sunken px-1.5 py-0.5 text-xs">
                     {stream.reachability}
                   </span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-[length:var(--text-xs)] text-ink-faint">
                     {REACHABILITY_HINT[stream.reachability]}
                   </span>
                 </div>
-                <code className="mt-1 block break-all text-xs text-slate-600">
+                <code className="mt-1 block break-all text-xs text-ink-muted">
                   {stream.url}
                 </code>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-[length:var(--text-xs)] text-ink-faint">
                   {[stream.codec, stream.resolution].filter(Boolean).join(" · ") || "—"}
                   {stream.requires_auth && (
                     <span className="ml-2 text-amber-600">requires credentials</span>
@@ -225,24 +225,24 @@ export default function CameraDetailPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">
+        <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
           Recent health
         </h2>
         {history.length === 0 ? (
-          <p className="rounded border p-4 text-sm text-slate-400">
+          <p className="rounded-[6px] border border-line bg-surface p-4 text-sm text-ink-faint">
             No observations recorded.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded border">
+          <div className="overflow-x-auto rounded-[6px] border border-line bg-surface">
             <table className="w-full text-sm">
               <tbody>
                 {history.map((observation, index) => (
-                  <tr key={index} className="border-b last:border-0">
+                  <tr key={index} className="border-b border-line last:border-0">
                     <td className="px-3 py-1.5">{observation.status}</td>
-                    <td className="px-3 py-1.5 text-slate-500">
+                    <td className="px-3 py-1.5 text-ink-muted">
                       {new Date(observation.observed_at).toLocaleString()}
                     </td>
-                    <td className="px-3 py-1.5 text-xs text-slate-400">
+                    <td className="px-3 py-1.5 text-[length:var(--text-xs)] text-ink-faint">
                       {observation.source}
                       {observation.latency_ms !== null &&
                         ` · ${observation.latency_ms}ms`}
@@ -256,23 +256,23 @@ export default function CameraDetailPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">
+        <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
           Change history
         </h2>
         {audit.length === 0 ? (
-          <p className="rounded border p-4 text-sm text-slate-400">
+          <p className="rounded-[6px] border border-line bg-surface p-4 text-sm text-ink-faint">
             No recorded changes.
           </p>
         ) : (
           <ul className="space-y-2">
             {audit.map((entry, index) => (
-              <li key={index} className="rounded border p-3 text-sm">
+              <li key={index} className="rounded-[6px] border border-line bg-surface p-3 text-sm">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="font-medium">{entry.action}</span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-[length:var(--text-xs)] text-ink-muted">
                     {new Date(entry.at).toLocaleString()}
                   </span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-[length:var(--text-xs)] text-ink-faint">
                     {entry.actor_label ?? "system"}
                   </span>
                 </div>
@@ -299,8 +299,8 @@ function Row({
 }) {
   return (
     <div className="flex justify-between gap-4 border-b border-slate-100 pb-1 last:border-0">
-      <dt className="text-xs uppercase text-slate-400">{label}</dt>
-      <dd className={mono ? "font-mono text-xs" : "text-slate-700"}>{value}</dd>
+      <dt className="text-xs uppercase text-ink-faint">{label}</dt>
+      <dd className={mono ? "font-mono text-xs" : "text-ink"}>{value}</dd>
     </div>
   );
 }
@@ -320,7 +320,7 @@ function Diff({
     <ul className="mt-2 space-y-0.5 text-xs">
       {changed.map((key) => (
         <li key={key}>
-          <span className="font-mono text-slate-500">{key}</span>{" "}
+          <span className="font-mono text-ink-muted">{key}</span>{" "}
           <span className="text-red-600 line-through">{String(before[key])}</span>{" "}
           <span className="text-green-700">{String(after[key])}</span>
         </li>

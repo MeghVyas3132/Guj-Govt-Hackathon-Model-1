@@ -1,26 +1,132 @@
 @import "tailwindcss";
 
+/*
+ * Sentinel CCTV Registry — design tokens.
+ *
+ * The chrome is near-monochrome so that colour carries meaning. Red in this
+ * interface means a camera is not watching; if the chrome also used red, that
+ * signal would compete with decoration. Every text/background pair below was
+ * checked against WCAG before being committed, including --ink-faint, which
+ * failed at its first value and was darkened until it passed on the sunken
+ * surface as well as the page background.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Neutrals carry a faint cool tint toward the brand hue rather than the
+     warm/cream tint that has become the generated-UI default. */
+  --bg: oklch(0.985 0.003 250);
+  --surface: oklch(1 0 0);
+  --surface-sunken: oklch(0.968 0.005 250);
+  --border: oklch(0.905 0.006 250);
+  --border-strong: oklch(0.845 0.008 250);
+
+  --ink: oklch(0.235 0.012 250);          /* 15.96:1 on --bg */
+  --ink-muted: oklch(0.455 0.011 250);    /*  6.97:1 on --bg */
+  --ink-faint: oklch(0.544 0.010 250);    /*  4.53:1 on --surface-sunken */
+
+  /* Gujarat Police navy. Primary actions, current selection, focus. Nowhere else. */
+  --brand: oklch(0.398 0.104 255);
+  --brand-hover: oklch(0.338 0.104 255);
+  --brand-tint: oklch(0.955 0.020 255);
+  --focus: oklch(0.556 0.152 255);
+
+  /* Status — the only other colour in the interface. */
+  --state-online-ink: oklch(0.418 0.108 150);
+  --state-online-bg: oklch(0.944 0.038 150);
+  --state-offline-ink: oklch(0.478 0.176 25);
+  --state-offline-bg: oklch(0.946 0.040 25);
+  --state-maintenance-ink: oklch(0.478 0.108 75);
+  --state-maintenance-bg: oklch(0.948 0.052 75);
+  --state-unknown-ink: var(--ink-muted);
+  --state-unknown-bg: var(--surface-sunken);
+
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  --radius-control: 4px;
+  --radius-panel: 6px;
+
+  /* Ease-out-expo: fast departure, soft arrival. No bounce. */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration: 170ms;
+
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+
+  --shadow-popover: 0 1px 2px oklch(0.235 0.012 250 / 0.06),
+                    0 8px 24px oklch(0.235 0.012 250 / 0.10);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--surface-sunken);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-brand: var(--brand);
+  --color-brand-tint: var(--brand-tint);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Figures that change or get compared must not jitter between renders. */
+.tabular,
+td,
+th,
+input,
+.metric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One focus treatment everywhere, and it is always visible. Removing the ring
+   for aesthetics makes the tool unusable by keyboard, which for a government
+   system is not a trade worth making. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+::placeholder {
+  color: var(--ink-faint); /* 4.5:1 — not the browser default grey */
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+  letter-spacing: -0.011em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

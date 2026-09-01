@@ -79,24 +79,24 @@ export function CameraDrawer({
         type="button"
         data-testid="drawer-close"
         onClick={onClose}
-        className="mb-4 text-sm text-slate-500 hover:text-slate-900"
+        className="mb-4 text-[length:var(--text-sm)] text-ink-muted hover:text-ink"
       >
         ← Close
       </button>
 
       <h2 className="font-mono text-lg font-semibold">{camera.camera_uid}</h2>
-      <p className="mb-4 text-xs uppercase tracking-wide text-slate-500">
+      <p className="mb-4 text-xs uppercase tracking-wide text-ink-muted">
         {camera.camera_type} · {camera.status}
       </p>
 
-      <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">
+      <h3 className="mb-2 text-[length:var(--text-xs)] font-medium text-ink-muted">
         Stream endpoints
       </h3>
 
       {streams === null ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-ink-faint">Loading…</p>
       ) : streams.length === 0 ? (
-        <p className="text-sm text-slate-400">No endpoints registered.</p>
+        <p className="text-sm text-ink-faint">No endpoints registered.</p>
       ) : (
         <ul className="space-y-2" data-testid="stream-list">
           {streams.map((s) => (
@@ -105,20 +105,20 @@ export function CameraDrawer({
                 <span className="font-semibold uppercase">
                   {s.protocol}
                   {s.is_primary && (
-                    <span className="ml-1 font-normal text-slate-400">primary</span>
+                    <span className="ml-1 font-normal text-ink-faint">primary</span>
                   )}
                 </span>
                 <span
                   className={`rounded px-1.5 py-0.5 ${
-                    REACHABILITY_STYLES[s.reachability] ?? "bg-slate-100 text-slate-700"
+                    REACHABILITY_STYLES[s.reachability] ?? "bg-sunken text-ink"
                   }`}
                 >
                   {s.reachability}
                 </span>
               </div>
-              <code className="mt-1 block break-all text-slate-600">{s.url}</code>
+              <code className="mt-1 block break-all text-ink-muted">{s.url}</code>
               {(s.codec || s.resolution) && (
-                <span className="mt-1 block text-slate-400">
+                <span className="mt-1 block text-ink-faint">
                   {[s.codec, s.resolution].filter(Boolean).join(" · ")}
                 </span>
               )}

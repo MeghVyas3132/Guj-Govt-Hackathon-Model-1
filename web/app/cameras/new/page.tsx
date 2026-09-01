@@ -108,16 +108,16 @@ export default function NewCameraPage() {
   const directional = !["ptz", "dome"].includes(form.camera_type);
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Add a camera</h1>
-      <p className="mb-6 text-sm text-slate-500">
+    <main className="mx-auto max-w-[44rem] p-6">
+      <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Add a camera</h1>
+      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         Goes through the same validation, vocabulary and dedupe as a CSV import or a
         vendor sync. Re-entering an external id updates that camera rather than
         creating a second one.
       </p>
 
       {message && (
-        <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] [background:var(--state-offline-bg)] [color:var(--state-offline-ink)]">
           {message}
         </p>
       )}
@@ -140,7 +140,7 @@ export default function NewCameraPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Department" required>
             <select
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               required
               value={form.department_id}
               onChange={(e) => update("department_id", e.target.value)}
@@ -156,7 +156,7 @@ export default function NewCameraPage() {
 
           <Field label="External camera id" required hint="The department's own id">
             <input
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               required
               value={form.external_camera_id}
               onChange={(e) => update("external_camera_id", e.target.value)}
@@ -166,7 +166,7 @@ export default function NewCameraPage() {
 
         <Field label="Name">
           <input
-            className="w-full rounded border px-3 py-2 text-sm"
+            className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
             placeholder="Nehru Bridge East Approach"
             value={form.name}
             onChange={(e) => update("name", e.target.value)}
@@ -176,7 +176,7 @@ export default function NewCameraPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Latitude" required hint="Decimal degrees, inside Gujarat">
             <input
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               required
               inputMode="decimal"
               placeholder="23.0225"
@@ -186,7 +186,7 @@ export default function NewCameraPage() {
           </Field>
           <Field label="Longitude" required>
             <input
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               required
               inputMode="decimal"
               placeholder="72.5714"
@@ -198,7 +198,7 @@ export default function NewCameraPage() {
 
         <Field label="Address">
           <input
-            className="w-full rounded border px-3 py-2 text-sm"
+            className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
             value={form.address}
             onChange={(e) => update("address", e.target.value)}
           />
@@ -207,7 +207,7 @@ export default function NewCameraPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Camera type">
             <select
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               value={form.camera_type}
               onChange={(e) => update("camera_type", e.target.value)}
             >
@@ -220,7 +220,7 @@ export default function NewCameraPage() {
           </Field>
           <Field label="Site type">
             <select
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
               value={form.site_type}
               onChange={(e) => update("site_type", e.target.value)}
             >
@@ -233,11 +233,11 @@ export default function NewCameraPage() {
           </Field>
         </div>
 
-        <fieldset className="rounded border p-4">
-          <legend className="px-1 text-xs font-semibold uppercase text-slate-500">
+        <fieldset className="rounded-[6px] border border-line bg-surface p-4">
+          <legend className="px-1 text-[length:var(--text-xs)] font-medium text-ink-muted">
             Optics
           </legend>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-[length:var(--text-xs)] text-ink-muted">
             {directional
               ? "A recorded bearing makes this camera's coverage a directional wedge in the gap analysis. Leaving it blank treats the camera as seeing in every direction, which overstates its contribution."
               : "Sweeping cameras are modelled as omnidirectional, so a bearing is not used."}
@@ -245,7 +245,7 @@ export default function NewCameraPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Azimuth °" hint="0 = north">
               <input
-                className="w-full rounded border px-3 py-2 text-sm disabled:bg-slate-50"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)] disabled:bg-sunken"
                 inputMode="decimal"
                 disabled={!directional}
                 placeholder="135"
@@ -255,7 +255,7 @@ export default function NewCameraPage() {
             </Field>
             <Field label="Field of view °">
               <input
-                className="w-full rounded border px-3 py-2 text-sm disabled:bg-slate-50"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)] disabled:bg-sunken"
                 inputMode="decimal"
                 disabled={!directional}
                 placeholder="90"
@@ -265,7 +265,7 @@ export default function NewCameraPage() {
             </Field>
             <Field label="Range m">
               <input
-                className="w-full rounded border px-3 py-2 text-sm"
+                className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
                 inputMode="decimal"
                 placeholder="100"
                 value={form.range_m}
@@ -279,14 +279,14 @@ export default function NewCameraPage() {
           <button
             type="submit"
             disabled={busy}
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)] disabled:opacity-40"
           >
             {busy ? "Saving…" : "Add camera"}
           </button>
           <button
             type="button"
             onClick={() => router.push("/cameras")}
-            className="rounded border px-4 py-2 text-sm"
+            className="inline-flex h-8 items-center rounded-[4px] border border-line-strong bg-surface px-3 text-[length:var(--text-sm)] transition-colors duration-[var(--duration)] hover:bg-sunken"
           >
             Cancel
           </button>
@@ -309,12 +309,12 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+      <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
         {label}
         {required && <span className="ml-1 text-red-500">*</span>}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-[length:var(--text-xs)] text-ink-faint">{hint}</span>}
     </label>
   );
 }

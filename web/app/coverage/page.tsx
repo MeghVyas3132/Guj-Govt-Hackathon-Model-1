@@ -14,9 +14,9 @@ export default function CoveragePage() {
   const offline = run ? run.camera_count - run.online_camera_count : 0;
 
   return (
-    <main className="mx-auto max-w-5xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Coverage gap analysis</h1>
-      <p className="mb-6 text-sm text-slate-500">
+    <main className="mx-auto max-w-[64rem] p-6">
+      <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Coverage gap analysis</h1>
+      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         How much of a district has camera coverage, and how much of the shortfall is
         broken cameras rather than absent ones.
       </p>
@@ -26,25 +26,25 @@ export default function CoveragePage() {
       {run && (
         <>
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <p className="text-xs font-semibold uppercase text-slate-500">
+            <div className="rounded-[6px] border border-line bg-surface p-4">
+              <p className="text-[length:var(--text-xs)] font-medium text-ink-muted">
                 Installed coverage
               </p>
               <p className="mt-1 text-3xl font-bold tabular-nums">
                 {run.installed_coverage_pct.toFixed(1)}%
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-[length:var(--text-xs)] text-ink-muted">
                 all {run.camera_count.toLocaleString()} cameras
               </p>
             </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-xs font-semibold uppercase text-slate-500">
+            <div className="rounded-[6px] border border-line bg-surface p-4">
+              <p className="text-[length:var(--text-xs)] font-medium text-ink-muted">
                 Effective coverage
               </p>
               <p className="mt-1 text-3xl font-bold tabular-nums">
                 {run.effective_coverage_pct.toFixed(1)}%
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-[length:var(--text-xs)] text-ink-muted">
                 {run.online_camera_count.toLocaleString()} currently online
               </p>
             </div>
@@ -79,11 +79,11 @@ export default function CoveragePage() {
               href={`${API}/api/v1/coverage/runs/${run.id}/report.html`}
               target="_blank"
               rel="noreferrer"
-              className="inline-block rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              className="inline-block inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)]"
             >
               Open full report
             </a>
-            <span className="text-xs text-slate-500">
+            <span className="text-[length:var(--text-xs)] text-ink-muted">
               {run.total_cells.toLocaleString()} cells at {run.hex_edge_m}m edge
             </span>
           </div>

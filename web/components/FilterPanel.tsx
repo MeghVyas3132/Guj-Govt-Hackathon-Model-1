@@ -37,7 +37,7 @@ function Chips({
             className={`rounded px-2 py-1 text-xs transition-colors ${
               active
                 ? "bg-slate-800 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                : "bg-sunken text-ink hover:bg-slate-200"
             }`}
           >
             {value}
@@ -63,7 +63,7 @@ export function FilterPanel({
       className="absolute left-4 top-4 z-10 w-72 rounded-lg bg-white/95 p-4 shadow-lg backdrop-blur"
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <span data-testid="match-count" className="text-sm font-semibold text-slate-800">
+        <span data-testid="match-count" className="text-sm font-semibold text-ink">
           {matchCount === null ? "…" : `${matchCount} cameras`}
         </span>
         {!isEmpty(filters) && (
@@ -71,7 +71,7 @@ export function FilterPanel({
             type="button"
             data-testid="clear-filters"
             onClick={() => onChange({ statuses: [], cameraTypes: [], departmentIds: [], q: "" })}
-            className="text-xs text-slate-500 underline hover:text-slate-900"
+            className="text-[length:var(--text-xs)] text-ink-muted underline hover:text-ink"
           >
             clear
           </button>
@@ -86,7 +86,7 @@ export function FilterPanel({
         onChange={(e) => onChange({ ...filters, q: e.target.value })}
       />
 
-      <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Status</p>
+      <p className="mb-1 text-[length:var(--text-xs)] font-medium text-ink-muted">Status</p>
       <div className="mb-3">
         <Chips
           group="status"
@@ -98,7 +98,7 @@ export function FilterPanel({
         />
       </div>
 
-      <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Camera type</p>
+      <p className="mb-1 text-[length:var(--text-xs)] font-medium text-ink-muted">Camera type</p>
       <Chips
         group="type"
         values={TYPES}

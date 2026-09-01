@@ -41,14 +41,14 @@ export default function AdminPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
-    <main className="mx-auto max-w-5xl p-8">
-      <h1 className="mb-1 text-2xl font-semibold">Administration</h1>
-      <p className="mb-6 text-sm text-slate-500">
+    <main className="mx-auto max-w-[64rem] p-6">
+      <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Administration</h1>
+      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         The registry&rsquo;s configuration. Everything here is data — adding a camera
         type or a place name takes effect immediately, with no deploy.
       </p>
 
-      <div className="mb-6 flex gap-1 border-b">
+      <div className="mb-6 flex gap-1 border-b border-line">
         {TABS.map((name) => (
           <button
             key={name}
@@ -59,8 +59,8 @@ export default function AdminPage() {
             }}
             className={`px-3 py-2 text-sm ${
               tab === name
-                ? "border-b-2 border-slate-900 font-medium text-slate-900"
-                : "text-slate-500 hover:text-slate-800"
+                ? "border-b-2 [border-color:var(--brand)] font-medium [color:var(--brand)]"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             {name}
@@ -69,12 +69,12 @@ export default function AdminPage() {
       </div>
 
       {error && (
-        <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] [background:var(--state-offline-bg)] [color:var(--state-offline-ink)]">
           {error}
         </p>
       )}
       {notice && (
-        <p className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p className="mb-4 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-online-ink)_30%,transparent)] [background:var(--state-online-bg)] [color:var(--state-online-ink)]">
           {notice}
         </p>
       )}
@@ -166,7 +166,7 @@ function Vocabulary({ onError, onNotice }: Handlers) {
             className={`rounded px-2 py-1 text-xs ${
               selected === d.dimension
                 ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-700"
+                : "bg-sunken text-ink"
             }`}
           >
             {d.dimension} ({d.active})
@@ -174,9 +174,9 @@ function Vocabulary({ onError, onNotice }: Handlers) {
         ))}
       </div>
 
-      <div className="mb-6 overflow-x-auto rounded border">
+      <div className="mb-6 overflow-x-auto rounded-[6px] border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="border-b border-line bg-sunken text-left text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
             <tr>
               <th className="px-3 py-2">Code</th>
               <th className="px-3 py-2">Label</th>
@@ -187,11 +187,11 @@ function Vocabulary({ onError, onNotice }: Handlers) {
           </thead>
           <tbody>
             {terms.map((term) => (
-              <tr key={term.code} className="border-b last:border-0">
+              <tr key={term.code} className="border-b border-line last:border-0">
                 <td className="px-3 py-2 font-mono text-xs">{term.code}</td>
                 <td className="px-3 py-2">{term.label}</td>
                 {isCameraType && (
-                  <td className="px-3 py-2 text-xs text-slate-500">
+                  <td className="px-3 py-2 text-[length:var(--text-xs)] text-ink-muted">
                     {term.is_omnidirectional
                       ? `${term.coverage_range_m ?? "?"}m circle`
                       : `${term.coverage_range_m ?? "?"}m · ${term.coverage_fov_deg ?? "?"}° wedge`}
@@ -207,7 +207,7 @@ function Vocabulary({ onError, onNotice }: Handlers) {
                     className={`rounded px-1.5 py-0.5 text-xs ${
                       term.is_active
                         ? "bg-green-100 text-green-800"
-                        : "bg-slate-100 text-slate-500"
+                        : "bg-sunken text-ink-muted"
                     }`}
                   >
                     {term.is_active ? "active" : "retired"}
@@ -217,7 +217,7 @@ function Vocabulary({ onError, onNotice }: Handlers) {
                   {!term.is_fallback && (
                     <button
                       onClick={() => toggle(term)}
-                      className="text-xs text-slate-500 underline-offset-2 hover:underline"
+                      className="text-[length:var(--text-xs)] text-ink-muted underline-offset-2 hover:underline"
                     >
                       {term.is_active ? "Retire" : "Restore"}
                     </button>
@@ -229,7 +229,7 @@ function Vocabulary({ onError, onNotice }: Handlers) {
         </table>
       </div>
 
-      <form onSubmit={addTerm} className="rounded border p-4">
+      <form onSubmit={addTerm} className="rounded-[6px] border border-line bg-surface p-4">
         <h3 className="mb-3 text-sm font-semibold">Add a {selected} term</h3>
         <div className="flex flex-wrap items-end gap-3">
           <Input label="Code" value={form.code} onChange={(v) => setForm({ ...form, code: v })} required />
@@ -248,10 +248,10 @@ function Vocabulary({ onError, onNotice }: Handlers) {
               </label>
             </>
           )}
-          <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Add</button>
+          <button className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)]">Add</button>
         </div>
         {isCameraType && (
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-[length:var(--text-xs)] text-ink-faint">
             The coverage fields feed the gap analysis directly, so a new type is
             modelled correctly straight away.
           </p>
@@ -313,18 +313,18 @@ function Aliases({ onError, onNotice }: Handlers) {
 
   return (
     <>
-      <p className="mb-4 text-sm text-slate-500">
+      <p className="mb-4 text-[length:var(--text-sm)] text-ink-muted">
         Sources that give a place name instead of coordinates are resolved through
         these. Recording how each mapping was established keeps a lookup distinct
         from a guess.
       </p>
 
       <label className="mb-4 block max-w-xs">
-        <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+        <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
           District
         </span>
         <select
-          className="w-full rounded border px-3 py-2 text-sm"
+          className="w-full rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
           value={boundaryId}
           onChange={(e) => setBoundaryId(e.target.value)}
         >
@@ -336,9 +336,9 @@ function Aliases({ onError, onNotice }: Handlers) {
         </select>
       </label>
 
-      <div className="mb-6 overflow-x-auto rounded border">
+      <div className="mb-6 overflow-x-auto rounded-[6px] border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="border-b border-line bg-sunken text-left text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
             <tr>
               <th className="px-3 py-2">Alias</th>
               <th className="px-3 py-2">How it was established</th>
@@ -346,14 +346,14 @@ function Aliases({ onError, onNotice }: Handlers) {
           </thead>
           <tbody>
             {aliases.map((a) => (
-              <tr key={a.id} className="border-b last:border-0">
+              <tr key={a.id} className="border-b border-line last:border-0">
                 <td className="px-3 py-2 font-mono text-xs">{a.alias}</td>
-                <td className="px-3 py-2 text-slate-600">{a.source}</td>
+                <td className="px-3 py-2 text-ink-muted">{a.source}</td>
               </tr>
             ))}
             {aliases.length === 0 && (
               <tr>
-                <td colSpan={2} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={2} className="px-3 py-6 text-center text-ink-faint">
                   No aliases for this district.
                 </td>
               </tr>
@@ -362,7 +362,7 @@ function Aliases({ onError, onNotice }: Handlers) {
         </table>
       </div>
 
-      <form onSubmit={add} className="flex flex-wrap items-end gap-3 rounded border p-4">
+      <form onSubmit={add} className="flex flex-wrap items-end gap-3 rounded-[6px] border border-line bg-surface p-4">
         <Input label="Alias" value={alias} onChange={setAlias} required />
         <Input
           label="Source"
@@ -370,7 +370,7 @@ function Aliases({ onError, onNotice }: Handlers) {
           onChange={setSource}
           placeholder="village in Chikhli taluka"
         />
-        <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Add</button>
+        <button className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)]">Add</button>
       </form>
     </>
   );
@@ -434,9 +434,9 @@ function Keys({ onError, onNotice }: Handlers) {
         </div>
       )}
 
-      <div className="mb-6 overflow-x-auto rounded border">
+      <div className="mb-6 overflow-x-auto rounded-[6px] border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="border-b border-line bg-sunken text-left text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
             <tr>
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Prefix</th>
@@ -447,10 +447,10 @@ function Keys({ onError, onNotice }: Handlers) {
           </thead>
           <tbody>
             {keys.map((key) => (
-              <tr key={key.id} className="border-b last:border-0">
+              <tr key={key.id} className="border-b border-line last:border-0">
                 <td className="px-3 py-2">{key.name}</td>
                 <td className="px-3 py-2 font-mono text-xs">{key.key_prefix}…</td>
-                <td className="px-3 py-2 text-xs text-slate-500">
+                <td className="px-3 py-2 text-[length:var(--text-xs)] text-ink-muted">
                   {key.scopes.join(", ")}
                 </td>
                 <td className="px-3 py-2">
@@ -478,7 +478,7 @@ function Keys({ onError, onNotice }: Handlers) {
             ))}
             {keys.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-3 py-6 text-center text-ink-faint">
                   No API keys issued.
                 </td>
               </tr>
@@ -487,14 +487,14 @@ function Keys({ onError, onNotice }: Handlers) {
         </table>
       </div>
 
-      <form onSubmit={create} className="flex flex-wrap items-end gap-3 rounded border p-4">
+      <form onSubmit={create} className="flex flex-wrap items-end gap-3 rounded-[6px] border border-line bg-surface p-4">
         <Input label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+          <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
             Department
           </span>
           <select
-            className="rounded border px-3 py-2 text-sm"
+            className="rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
             required
             value={form.department_id}
             onChange={(e) => setForm({ ...form, department_id: e.target.value })}
@@ -507,7 +507,7 @@ function Keys({ onError, onNotice }: Handlers) {
             ))}
           </select>
         </label>
-        <button className="rounded bg-slate-900 px-4 py-2 text-sm text-white">
+        <button className="inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)]">
           Issue key
         </button>
       </form>
@@ -529,9 +529,9 @@ function Audit({ onError }: { onError: (m: string | null) => void }) {
   }, [onError]);
 
   return (
-    <div className="overflow-x-auto rounded border">
+    <div className="overflow-x-auto rounded-[6px] border border-line bg-surface">
       <table className="w-full text-sm">
-        <thead className="border-b bg-slate-50 text-left text-xs uppercase text-slate-500">
+        <thead className="border-b border-line bg-sunken text-left text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
           <tr>
             <th className="px-3 py-2">When</th>
             <th className="px-3 py-2">Action</th>
@@ -541,18 +541,18 @@ function Audit({ onError }: { onError: (m: string | null) => void }) {
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.id} className="border-b last:border-0">
-              <td className="px-3 py-2 text-xs text-slate-500">
+            <tr key={entry.id} className="border-b border-line last:border-0">
+              <td className="px-3 py-2 text-[length:var(--text-xs)] text-ink-muted">
                 {new Date(entry.at).toLocaleString()}
               </td>
               <td className="px-3 py-2 font-mono text-xs">{entry.action}</td>
-              <td className="px-3 py-2 text-slate-600">{entry.entity_type}</td>
+              <td className="px-3 py-2 text-ink-muted">{entry.entity_type}</td>
               <td className="px-3 py-2 text-xs">{entry.actor_label ?? "system"}</td>
             </tr>
           ))}
           {entries.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-3 py-6 text-center text-slate-400">
+              <td colSpan={4} className="px-3 py-6 text-center text-ink-faint">
                 Nothing recorded yet.
               </td>
             </tr>
@@ -578,11 +578,11 @@ function Input({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+      <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
         {label}
       </span>
       <input
-        className="rounded border px-3 py-2 text-sm"
+        className="rounded-[4px] border border-line-strong bg-surface px-2.5 h-8 text-[length:var(--text-sm)]"
         value={value}
         required={required}
         placeholder={placeholder}
