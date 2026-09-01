@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch } from "@/lib/session";
 
 // The subset of OfflineCamera in app/schemas/health.py that the table renders. The
 // server has already ordered these by status_since ascending, which is longest
@@ -38,7 +38,7 @@ export function OfflineTable() {
     // leave a timer fetching into a dead component.
     let cancelled = false;
     const load = () =>
-      fetch(`${API}/api/v1/health/offline`)
+      apiFetch("/api/v1/health/offline")
         .then((r) => r.json())
         .then((page) => {
           if (!cancelled) setRows(page.items);

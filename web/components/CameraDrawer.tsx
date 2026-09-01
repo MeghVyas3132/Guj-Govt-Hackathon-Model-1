@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch } from "@/lib/session";
 
 // The subset of StreamEndpointRead the drawer renders. `reachability` is the field
 // that matters operationally: public_cdn opens on any network, direct_ip only where
@@ -50,7 +50,7 @@ export function CameraDrawer({
     if (!camera) return;
     const id = camera.id;
     let cancelled = false;
-    fetch(`${API}/api/v1/cameras/${id}/streams`)
+    apiFetch(`/api/v1/cameras/${id}/streams`)
       .then((r) => r.json())
       .then((streams: StreamEndpoint[]) => {
         if (!cancelled) setResult({ id, streams });

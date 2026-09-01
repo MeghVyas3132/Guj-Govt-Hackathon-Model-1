@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { RequireAuth } from "@/components/RequireAuth";
 import { SiteNav } from "@/components/SiteNav";
 
 import "./globals.css";
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SiteNav />
         {/* min-h-0 lets this shrink below its content so the map can fill it
             exactly and scrolling pages scroll here rather than on the body. */}
-        <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto">
+          <RequireAuth>{children}</RequireAuth>
+        </main>
       </body>
     </html>
   );

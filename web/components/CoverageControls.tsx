@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch } from "@/lib/session";
 
 export type CoverageRun = {
   id: string;
@@ -35,7 +35,7 @@ export function CoverageControls({
 
   useEffect(() => {
     let active = true;
-    fetch(`${API}/api/v1/boundaries?level=district`)
+    apiFetch("/api/v1/boundaries?level=district")
       .then((r) => r.json())
       .then((data: Boundary[]) => {
         if (!active) return;
@@ -54,8 +54,8 @@ export function CoverageControls({
     if (!boundaryId) return;
     let active = true;
     const timer = setTimeout(() => {
-      fetch(
-        `${API}/api/v1/coverage/estimate?boundary_id=${boundaryId}&hex_edge_m=${edge}`,
+      apiFetch(
+        `/api/v1/coverage/estimate?boundary_id=${boundaryId}&hex_edge_m=${edge}`,
       )
         .then((r) => r.json())
         .then((data) => active && setEstimate(data))
@@ -71,7 +71,7 @@ export function CoverageControls({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API}/api/v1/coverage/runs`, {
+      const response = await apiFetch("/api/v1/coverage/runs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ boundary_id: boundaryId, hex_edge_m: edge }),

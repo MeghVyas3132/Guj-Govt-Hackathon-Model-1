@@ -16,7 +16,7 @@ import { CameraDrawer, type SelectedCamera } from "@/components/CameraDrawer";
 import { FilterPanel } from "@/components/FilterPanel";
 import { EMPTY_FILTERS, type Filters, toQueryString } from "@/lib/filters";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API, apiFetch, getToken } from "@/lib/session";
 
 // Matches CameraStatus in app/core/enums.py. The trailing bare colour is the
 // fallback `match` requires, and is what `unknown` renders as.
@@ -61,8 +61,20 @@ export function CameraMap() {
   useEffect(() => {
     if (!container.current || map.current) return;
 
+    // MapLibre fetches tiles itself, so apiFetch never sees those requests. This is
+    // the only hook it offers for attaching a header to them; without it every tile
+    // returns 401 and the map renders an empty basemap with no explanation.
+    const transformRequest = (
+      url: string,
+    ): { url: string; headers?: Record<string, string> } => {
+      if (!url.startsWith(API)) return { url };
+      const token = getToken();
+      return token ? { url, headers: { Authorization: `Bearer ${token}` } } : { url };
+    };
+
     const instance = new MapLibreMap({
       container: container.current,
+      transformRequest,
       style: {
         version: 8,
         // A symbol layer draws nothing without a glyph source, so without this the
@@ -192,7 +204,7 @@ export function CameraMap() {
   useEffect(() => {
     let cancelled = false;
     const suffix = appliedQuery ? `&${appliedQuery}` : "";
-    fetch(`${API}/api/v1/cameras?limit=1${suffix}`)
+    apiFetch(`/api/v1/cameras?limit=1${suffix}`)
       .then((r) => r.json())
       .then((page) => {
         if (!cancelled) setMatchCount(page.total ?? 0);

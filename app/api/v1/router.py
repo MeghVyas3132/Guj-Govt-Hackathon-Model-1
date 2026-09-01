@@ -11,6 +11,7 @@ from app.api.v1.routers import (
     health,
     onboarding,
     tiles,
+    vocabulary,
 )
 
 api_router = APIRouter()
@@ -24,3 +25,4 @@ api_router.include_router(departments.router)
 api_router.include_router(health.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(tiles.router)
+api_router.include_router(vocabulary.router)
