@@ -1,0 +1,215 @@
+# Sentinel CCTV Registry — Model 1
+
+**Centralised CCTV Registry & GIS Foundation** for the Gujarat Police Innovation
+Challenge 2026.
+
+Metadata and asset visibility only: no video streaming, recording, or analytics.
+Model 1 is the mandatory foundation that Models 2–4 query, and this repository
+implements it so that it can actually be depended on — a camera registered here
+carries everything another system needs to reach it.
+
+---
+
+## Quick start
+
+```bash
+docker compose up -d db redis
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+alembic upgrade head
+
+python -m seeds.vocabulary        # controlled vocabularies
+python -m seeds.boundaries        # 33 Gujarat districts
+python -m seeds.departments       # 6 departments, each with a different schema
+python -m seeds.place_aliases     # place-name → district lookups
+python -m seeds.users             # 4 demo accounts, one per role
+python -m seeds.connectors        # the Sentinel sandbox, as a config row
+python -m seeds.synthetic 80000   # 80,000 cameras inside real district polygons
+
+uvicorn app.main:app --port 8000
+cd web && npm install && npm run dev
+```
+
+| | |
+|---|---|
+| Portal | http://localhost:3000 |
+| API docs | http://localhost:8000/docs |
+| Public keys | http://localhost:8000/.well-known/jwks.json |
+
+Demo accounts, password `Sentinel@2026`: `root@`, `mun.admin@`, `analyst@`,
+`viewer@` — all `gujarat.gov.in`. Sign in as each to see the same pages behave
+differently.
+
+---
+
+## What it does
+
+| Capability | Where |
+|---|---|
+| Bulk CSV import, validate → preview → import | `/onboarding` |
+| Manual camera entry | `/cameras/new` |
+| API onboarding for departmental systems | `POST /api/v1/onboarding/bulk` |
+| Vendor onboarding by configuration | `/connectors` |
+| GIS map with layer toggles and filters | `/map` |
+| Radius and district spatial search | `GET /api/v1/cameras/nearby` |
+| Health monitoring ranked by downtime | `/health` |
+| Coverage gap analysis and report | `/coverage` |
+| CSV export and per-camera change history | `/cameras` |
+| Vocabulary, aliases, keys, audit trail | `/admin` |
+
+**296 tests · 38 API paths · 15 tables · 9 migrations · 9 pages.**
+
+---
+
+## The three ideas this is built on
+
+### 1. One pipeline, whatever the source
+
+CSV upload, the manual form, the REST endpoint and a vendor sync all construct the
+same `RawCameraRecord` and call one function:
+
+```
+RawCameraRecord → FieldMappingResolver → [geocoding] → VocabularyService
+                → CameraValidator → Deduper → Persist + audit
+```
+
+Consequences that are tested rather than asserted:
+
+- **Idempotent** on `(department_id, external_camera_id)`. Re-running a nightly
+  sync produces `skipped`, writes nothing, and adds no audit noise.
+- **One bad row fails alone.** Its batch-mates still commit, and the row reports
+  which field failed and why.
+- `validate_only` writes nothing but reports what *would* happen, which is what
+  makes the preview wizard possible without a second code path.
+
+### 2. Configuration, not code
+
+Onboarding a department that nobody anticipated should not require a deploy. So:
+
+| What | Where it lives |
+|---|---|
+| A vendor's catalogue URL, auth scheme, JSON shape, stream protocols | `source_connectors` row |
+| A department's column names and vocabulary | `field_mappings` row |
+| Camera types, statuses, connectivity, site types | `vocabulary_terms` rows |
+| Coverage geometry per camera type | columns on the `camera_type` term |
+| Place names the geocoder resolves | `place_aliases` rows |
+| Secrets | `credentials`, referenced by name, env override |
+
+There is no vendor name anywhere in the application. `RestCatalogueAdapter` does
+not know that "sentinel" exists, nor that HLS or RTSP exist — it does what the
+connector row says. Auth is generic: cookie, header, bearer, basic or none.
+
+### 3. Never silently lose what you were told
+
+A camera type this registry has never seen is **recorded, not discarded**. It
+normalises to the dimension's fallback so it stays queryable, the original text is
+kept in `metadata.unmapped_camera_type`, and the row carries a warning. An
+operator adds one row and re-imports; nothing was lost in between.
+
+An unconfigured dimension accepts anything. A registry with no vocabulary loaded
+must not null every controlled field it is handed — permissive when unconfigured,
+strict once configured.
+
+---
+
+## For Models 2–4
+
+```python
+import httpx, jwt
+
+# Verify our tokens offline: your login must not fail because we are restarting.
+jwks = httpx.get("http://<registry>/.well-known/jwks.json").json()
+key = jwt.PyJWK.from_dict(jwks["keys"][0]).key
+claims = jwt.decode(token, key, algorithms=["RS256"], audience="sentinel-platform")
+
+# How to reach a camera.
+streams = httpx.get(
+    f"http://<registry>/api/v1/cameras/{camera_id}/streams",
+    headers={"X-API-Key": your_key},
+).json()
+```
+
+Pick the endpoint whose `reachability` matches your network — `public_cdn` works
+anywhere, `direct_ip` needs gateway ports open, `lan_only` does not leave the
+site. Do not keep your own camera list; ask the registry.
+
+---
+
+## Access model
+
+| Role | Read | Write | Export | Admin |
+|---|---|---|---|---|
+| `super_admin` | all | all | ✓ | ✓ |
+| `dept_admin` | all departments | own department only | ✓ | — |
+| `analyst` | all departments | — | ✓ | — |
+| `viewer` | all departments | — | — | — |
+
+**Read is statewide, write is departmental.** The platform exists to remove
+departmental blind spots, so scoping reads would defeat its purpose. Holding
+`cameras:write` is not sufficient to write into another department.
+
+Roles are read from the user row rather than trusted from the token, so revoking
+or demoting someone takes effect on their next request instead of when their
+token happens to expire.
+
+---
+
+## Known limitations
+
+Stated here rather than discovered later.
+
+**Coverage analysis** is two-dimensional with no terrain or building occlusion, so
+real coverage is *lower* than reported. Ranges are nominal per camera type, not
+derived from optics or lighting. Cameras with no recorded bearing are treated as
+omnidirectional, which *overstates* their contribution — the report counts them
+and says so.
+
+**District-level positions.** Sources that supply a place name and no coordinates
+are resolved to the district's representative point and stamped
+`geocode_precision: district`. Those cameras are real and their count is reliable,
+but their coverage appears concentrated where no camera physically stands. The
+report raises this prominently. Importing surveyed coordinates updates them in
+place, because ingestion dedupes rather than duplicates.
+
+**Coverage run size** is capped at 250,000 cells. A request over budget is refused
+with the edge length that would work rather than left to appear hung.
+
+**Health probing** covers 200 cameras per five-minute pass, ordered by staleness.
+At 80,000 cameras that is a 33-hour rotation. Full coverage needs the partitioned
+worker pool described in the HLD.
+
+**Rate limiting** records a tier per API key and exposes a middleware hook, but no
+limiter enforces it; enforcement belongs at an API gateway. **API key rotation** is
+designed, not built — keys are created and revoked, not rolled. **Token storage**
+is `localStorage`, appropriate for a cross-origin demonstration portal; behind a
+single domain it should move to an httpOnly cookie, which is a change to one file.
+
+**`camera_health` partitioning** by month is designed, not built.
+
+**One sandbox camera (cam20, "Mohanpura") has no location** — the name matches no
+Gujarat district and the geocoder declines rather than guessing. A camera visibly
+missing is better than one confidently in the wrong district.
+
+---
+
+## Testing
+
+```bash
+pytest                                    # 296 tests
+ruff check .
+cd web && npx tsc --noEmit && npx eslint . && npm run build
+```
+
+Tests use testcontainers, so a real PostGIS instance is started per session —
+spatial behaviour is verified against PostGIS rather than mocked.
+
+---
+
+## Documentation
+
+- [Onboarding a department](docs/api/onboarding-guide.md)
+- [OpenAPI specification](docs/api/openapi.json) — regenerate with
+  `python -m scripts.export_openapi`; a test fails if it drifts
+- [Design specification](docs/superpowers/specs/2026-08-31-cctv-registry-gis-design.md)
+- [Sample gap-analysis report](docs/sample-gap-analysis-report.html)

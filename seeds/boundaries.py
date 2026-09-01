@@ -33,7 +33,7 @@ from pathlib import Path
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import MultiPolygon, shape
-from sqlalchemy import delete
+from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.models.admin_boundary import AdminBoundary
@@ -60,23 +60,42 @@ def _code(properties: dict) -> str | None:
 async def main() -> None:
     collection = json.loads(GEOJSON.read_text())
     async with SessionLocal() as session:
-        # Replace rather than append: re-running the seed must not leave two copies of
-        # every district, which would double every coverage count computed against them.
-        await session.execute(delete(AdminBoundary).where(AdminBoundary.level == "district"))
+        # Upsert by name rather than delete-then-insert. Boundaries are reference
+        # data that coverage_runs point at; deleting them would either break that
+        # foreign key or, with a cascade, silently destroy historical analyses.
+        existing = {
+            row.name: row
+            for row in (
+                await session.execute(
+                    select(AdminBoundary).where(AdminBoundary.level == "district")
+                )
+            ).scalars().all()
+        }
+
+        added = updated = 0
         for feature in collection["features"]:
             geometry = shape(feature["geometry"])
             if geometry.geom_type == "Polygon":
                 geometry = MultiPolygon([geometry])
-            session.add(
-                AdminBoundary(
-                    level="district",
-                    name=_name(feature["properties"]),
-                    code=_code(feature["properties"]),
-                    geom=from_shape(geometry, srid=4326),
+
+            name = _name(feature["properties"])
+            # Census names are the stable join key; display spellings vary.
+            code = feature["properties"].get("dtcode11")
+            geom = from_shape(geometry, srid=4326)
+
+            row = existing.get(name)
+            if row is None:
+                session.add(
+                    AdminBoundary(level="district", name=name, code=code, geom=geom)
                 )
-            )
+                added += 1
+            else:
+                row.geom = geom
+                row.code = code
+                updated += 1
+
         await session.commit()
-    print(f"Loaded {len(collection['features'])} districts")
+    print(f"Districts: {added} added, {updated} updated")
 
 
 if __name__ == "__main__":
