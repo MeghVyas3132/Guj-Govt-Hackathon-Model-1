@@ -83,7 +83,7 @@ differently.
 | [Gap analysis](docs/api/reports.md) | Coverage and ageing infrastructure |
 | [Event subscriptions](docs/api/webhooks.md) | Signed alerts, and how to verify them |
 | [OpenAPI spec](docs/api/openapi.json) | Generated, and drift-tested against the code |
-| [Sample dataset](docs/sample-camera-dataset.csv) | The 30 sandbox cameras as onboarded, 24 columns |
+| [Sample dataset](docs/sample-camera-dataset.csv) | The 30 sandbox cameras as onboarded, 24 columns, 10 districts |
 | [Sample gap-analysis report](docs/sample-gap-analysis-report.html) | Generated from real data |
 
 ---
