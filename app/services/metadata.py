@@ -25,9 +25,10 @@ from app.services.enrichment import StreamEnricher, StreamMetadata
 # Only these can be read without a media server negotiating a session first.
 ENRICHABLE = (StreamProtocol.HLS.value,)
 
-# Bounded for the same reason the health probe is: a fleet-wide enrichment must not
-# open a socket per camera.
-CONCURRENCY = 10
+# Lower than the health probe's bound because this is a different kind of work:
+# a probe fetches a few KB, whereas enrichment decodes encrypted media. Ten at
+# once starves each one until they all hit their timeout.
+CONCURRENCY = 4
 
 
 @dataclass

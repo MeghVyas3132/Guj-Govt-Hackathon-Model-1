@@ -114,6 +114,17 @@ fetch and one segment decode against the source.
 place. A gateway down for maintenance must not blank the codec that a successful
 probe established last week, so only a measured value overwrites anything.
 
+**Treat it as a background job, not an interactive one.** Measured against the
+live sandbox, enrichment runs at roughly 16 seconds per camera: `ffprobe` has to
+parse the playlist — 7,200 entries for a 12-hour archive — then fetch the
+decryption key and one encrypted segment before it can report a frame. Four run
+concurrently; more starves each one until they all time out. A department of
+1,000 cameras is a scheduled overnight run, not a button someone waits on.
+
+**A value that cannot be measured stays absent.** Where `ffprobe` reports a frame
+rate of `0/0` the field is omitted rather than defaulted, because a fabricated 25
+is worse than an honest gap — one of the 30 sandbox cameras does exactly this.
+
 ---
 
 ## Tier 3 — the health probe
@@ -158,14 +169,14 @@ Against the live sandbox, 29 of 30 cameras resolve to a district from their name
 alone, across 9 districts. Enrichment then establishes real per-camera technical
 metadata:
 
-| | cam01 | cam17 | cam29 |
-|---|---|---|---|
-| codec | h264 | h264 | h264 |
-| resolution | 1920×1080 | 1920×1080 | 1280×960 |
-| frame rate | 30 | 25 | 25 |
-| segment target | 8s | 10s | 11s |
-| encryption | AES-128 | AES-128 | AES-128 |
-| feed | recorded loop | recorded loop | recorded loop |
+| | cam01 | cam03 | cam06 | cam29 |
+|---|---|---|---|---|
+| codec | h264 | h264 | h264 | h264 |
+| resolution | 1920×1080 | 1280×720 | 1920×1080 | 1280×960 |
+| frame rate | 30 | 30 | 25 | 25 |
+| archive | 12h | 12h | 24h | 8h |
+| encryption | AES-128 | AES-128 | AES-128 | AES-128 |
+| feed | recorded loop | recorded loop | recorded loop | recorded loop |
 
 Two things worth knowing before building Models 2–4 on it: every stream is
 AES-128 encrypted against `/enc.key`, and every one is

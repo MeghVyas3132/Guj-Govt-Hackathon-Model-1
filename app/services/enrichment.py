@@ -200,9 +200,17 @@ class StreamEnricher:
         timeout: float = 15.0,
         ffprobe_path: str | None = None,
         probe_media: bool = True,
+        media_timeout: float = 90.0,
     ) -> None:
         self.transport = transport
         self.timeout = timeout
+        # Decoding media is not the same operation as fetching a manifest and
+        # cannot share its budget. ffprobe has to parse the playlist -- 7,200
+        # entries for a 12-hour archive -- then fetch the decryption key and one
+        # encrypted segment before it can report a single frame. Under
+        # concurrency that comfortably exceeds any sane HTTP timeout, and the
+        # symptom is every camera reporting "ffprobe timed out".
+        self.media_timeout = media_timeout
         self.probe_media = probe_media
         self.ffprobe_path = ffprobe_path or shutil.which("ffprobe")
 
@@ -270,6 +278,10 @@ class StreamEnricher:
         elif secret and header_name:
             args += ["-headers", f"{header_name}: {secret}\r\n"]
         args += [
+            # Bounded so ffprobe stops as soon as it can describe the stream
+            # rather than buffering for its default 5 seconds of media.
+            "-probesize", "2000000",
+            "-analyzeduration", "2000000",
             "-select_streams", "v:0",
             "-show_entries", "stream=codec_name,width,height,avg_frame_rate",
             "-of", "json",
@@ -284,13 +296,13 @@ class StreamEnricher:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=self.timeout
+                process.communicate(), timeout=self.media_timeout
             )
         except TimeoutError:
             # communicate() leaves the child running when it times out.
             process.kill()
             await process.wait()
-            result.error = "ffprobe timed out"
+            result.error = f"ffprobe timed out after {self.media_timeout:.0f}s"
             return
         except OSError as exc:
             result.error = f"ffprobe unavailable: {exc}"
