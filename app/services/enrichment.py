@@ -180,6 +180,17 @@ class StreamMetadata:
         return out
 
 
+def _describe(exc: Exception, stage: str) -> str:
+    """A transport error that says which step failed.
+
+    httpx timeout exceptions carry an empty message, so the bare repr reads as
+    "ReadTimeout: " -- which tells an operator nothing about whether the
+    manifest, the key or the segment was the problem.
+    """
+    detail = str(exc).strip()
+    return f"{type(exc).__name__} fetching {stage}" + (f": {detail}" if detail else "")
+
+
 def _decrypt_aes128(payload: bytes, key: bytes, iv_hex: str | None) -> bytes:
     """Undo HLS AES-128-CBC on one segment.
 
@@ -234,6 +245,14 @@ def _fps(value: str | None) -> float | None:
 _KEY_CACHE: dict[str, bytes] = {}
 _KEY_CACHE_MAX = 256
 
+# How much of a segment to fetch. A decoder needs only the beginning of an
+# MPEG-TS to report codec, resolution and frame rate, and segment sizes vary
+# wildly on one gateway -- 268KB on one sandbox camera, 2.7MB on another.
+# Pulling whole segments made the largest cameras the ones that always timed
+# out, which is exactly backwards: they are no harder to describe, only slower
+# to download. 384KB covers the PAT/PMT and several frames.
+SEGMENT_PREFIX_BYTES = 384 * 1024
+
 
 class StreamEnricher:
     """Two-tier enrichment: manifest first, media decode second.
@@ -282,25 +301,20 @@ class StreamEnricher:
         cookie_name: str | None = None,
         header_name: str | None = None,
     ) -> StreamMetadata:
-        cookies = {cookie_name: secret} if (secret and cookie_name) else None
-        headers = {header_name: secret} if (secret and header_name) else None
-
+        # The manifest goes through the same retrying fetch as the segment. It
+        # used to have its own inline request with a shorter timeout and no
+        # retry at all, which made it the failure point on an erratic gateway --
+        # the segment path was hardened and the step before it was not.
         try:
-            async with httpx.AsyncClient(
-                transport=self.transport,
-                timeout=self.timeout,
-                cookies=cookies,
-                headers=headers,
-                follow_redirects=False,
-            ) as client:
-                response = await client.get(url)
+            raw = await self._fetch(
+                url, secret, cookie_name, header_name, stage="manifest"
+            )
         except httpx.HTTPError as exc:
-            return StreamMetadata(error=f"{type(exc).__name__}: {exc}")
+            return StreamMetadata(error=_describe(exc, "manifest"))
+        except ValueError as exc:
+            return StreamMetadata(error=str(exc))
 
-        if response.status_code >= 300:
-            return StreamMetadata(error=f"HTTP {response.status_code}")
-
-        manifest = parse_manifest(response.text)
+        manifest = parse_manifest(raw.decode("utf-8", errors="replace"))
         result = StreamMetadata(manifest=manifest)
 
         # A master playlist states resolution and codecs itself. Free, and exact.
@@ -324,6 +338,8 @@ class StreamEnricher:
         secret: str | None,
         cookie_name: str | None,
         header_name: str | None,
+        prefix_bytes: int | None = None,
+        stage: str = "segment",
     ) -> bytes:
         """Fetch one resource, retrying a timeout with backoff.
 
@@ -337,6 +353,11 @@ class StreamEnricher:
         """
         cookies = {cookie_name: secret} if (secret and cookie_name) else None
         headers = {header_name: secret} if (secret and header_name) else None
+        if prefix_bytes:
+            # A gateway free to ignore this returns 200 and the whole body, which
+            # still works -- just slower. Nothing depends on the range being
+            # honoured.
+            headers = {**(headers or {}), "Range": f"bytes=0-{prefix_bytes - 1}"}
 
         last: Exception | None = None
         for attempt in range(self.max_retries + 1):
@@ -356,9 +377,12 @@ class StreamEnricher:
                 continue
             if response.status_code >= 300:
                 raise ValueError(f"HTTP {response.status_code} fetching {url}")
-            return response.content
+            body = response.content
+            # Trim a gateway that ignored the Range header, so the cost of a
+            # 2.7MB segment is paid once rather than on every retry.
+            return body[:prefix_bytes] if prefix_bytes else body
 
-        raise last if last else ValueError(f"could not fetch {url}")
+        raise last if last else ValueError(f"could not fetch {stage}")
 
     async def _segment_bytes(
         self,
@@ -370,7 +394,10 @@ class StreamEnricher:
     ) -> bytes:
         """One decrypted media segment, ready for a decoder."""
         segment_url = urljoin(manifest_url, manifest.first_segment or "")
-        payload = await self._fetch(segment_url, secret, cookie_name, header_name)
+        payload = await self._fetch(
+            segment_url, secret, cookie_name, header_name,
+            prefix_bytes=SEGMENT_PREFIX_BYTES,
+        )
 
         if not manifest.encryption:
             return payload
@@ -391,7 +418,15 @@ class StreamEnricher:
             if len(_KEY_CACHE) < _KEY_CACHE_MAX:
                 _KEY_CACHE[key_url] = key
 
-        return _decrypt_aes128(payload, key, manifest.key_iv)
+        # A ranged fetch lands mid-block. CBC decrypts from the start regardless,
+        # so the trailing partial block is simply dropped -- and _decrypt_aes128
+        # strips padding only when it is actually valid, so the truncated tail is
+        # left alone rather than mistaken for padding.
+        whole = payload[: len(payload) - (len(payload) % 16)]
+        if not whole:
+            raise ValueError("segment is shorter than one AES block")
+
+        return _decrypt_aes128(whole, key, manifest.key_iv)
 
     async def _probe_media(
         self,
@@ -424,7 +459,7 @@ class StreamEnricher:
         try:
             payload = await self._segment_bytes(url, manifest, secret, cookie_name, header_name)
         except httpx.HTTPError as exc:
-            result.error = f"{type(exc).__name__}: {exc}"[:300]
+            result.error = _describe(exc, "segment")
             return
         except ValueError as exc:
             result.error = str(exc)[:300]

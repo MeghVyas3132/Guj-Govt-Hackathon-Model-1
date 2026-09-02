@@ -189,13 +189,24 @@ Measured against the live sandbox:
 
 | Operation | Cost | Bottleneck |
 |---|---|---|
-| Gateway request, any size | **~11s cold, worse under load** | **the gateway** |
-| Manifest (216 KB, 7,200 entries) | 1 request | gateway |
-| Key (16 bytes) | 1 request, **cached** | gateway |
-| Segment (268 KB) | 1 request | gateway |
+| Gateway request | **~11s cold, far worse under load** | **the gateway** |
+| Manifest (216 KB, 7,200 entries) | 1 request, retried | gateway |
+| Key (16 bytes) | 1 request, **cached across cameras** | gateway |
+| Segment prefix (384 KB via `Range`) | 1 request | gateway |
 | ffprobe on local bytes | ~50 ms | nothing |
 
 **The gateway is the entire cost.** ffprobe is free once the bytes are local.
+
+Segment sizes vary tenfold on the same gateway — 268 KB on one sandbox camera,
+2.7 MB on another — so whole-segment fetches made the *largest* cameras the ones
+that always timed out. That is backwards: they are no harder to describe, only
+slower to download. A decoder needs only the beginning, so only a 384 KB prefix
+is requested. Measured on the worst camera:
+
+| | Result |
+|---|---|
+| Whole segment | `200`, 131 KB in **60 s — timed out** |
+| `Range: bytes=0-393215` | `206`, 393 KB in **7.1 s ✓** |
 
 This is why enrichment fetches the segment itself instead of handing ffprobe a
 playlist URL: that made ffmpeg do three serial round-trips it controlled and we

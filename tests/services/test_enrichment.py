@@ -184,7 +184,9 @@ async def test_a_media_playlist_still_yields_manifest_facts_without_ffprobe():
 async def test_an_error_status_is_recorded_not_raised(status):
     """Enrichment is best-effort: one unreachable camera must not fail a batch."""
     m = await enricher(lambda r: httpx.Response(status)).enrich("https://x.test/i.m3u8")
-    assert m.error == f"HTTP {status}" and m.codec is None
+    # The message names the status and the URL, so an operator can tell a dead
+    # camera from a mistyped connector without reading logs.
+    assert m.error.startswith(f"HTTP {status}") and m.codec is None
 
 
 @pytest.mark.asyncio
@@ -192,7 +194,7 @@ async def test_a_redirect_is_recorded_rather_than_followed():
     """Following it would parse a login page as a manifest."""
     handler = lambda r: httpx.Response(302, headers={"location": "/login"})
     m = await enricher(handler).enrich("https://x.test/i.m3u8")
-    assert m.error == "HTTP 302"
+    assert m.error.startswith("HTTP 302")
 
 
 @pytest.mark.asyncio
@@ -201,7 +203,8 @@ async def test_a_network_failure_is_recorded_with_its_type():
         raise httpx.ConnectError("refused")
 
     m = await enricher(boom).enrich("https://x.test/i.m3u8")
-    assert "ConnectError" in m.error
+    # Names the stage: "ConnectError fetching manifest", not a bare repr.
+    assert "ConnectError" in m.error and "manifest" in m.error
 
 
 @pytest.mark.asyncio
@@ -470,3 +473,96 @@ def test_the_retry_budget_is_bounded_in_wall_clock():
     e = StreamEnricher(ffprobe_path=None)
     worst_case = e.media_timeout * (e.max_retries + 1) + e.retry_backoff_s * 3
     assert worst_case < 180
+
+
+# ---- ranged segment fetch ----------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_only_a_prefix_of_the_segment_is_requested():
+    """Segment sizes vary tenfold on one gateway -- 268KB on one sandbox camera,
+    2.7MB on another -- and a decoder needs only the beginning. Pulling whole
+    segments made the largest cameras the ones that always timed out, which is
+    backwards: they are no harder to describe, only slower to download.
+
+    Measured live: whole segment timed out at 60s having pulled 131KB; the same
+    fetch with a Range header returned 393KB in 7.1s."""
+    from app.services.enrichment import SEGMENT_PREFIX_BYTES
+
+    seen = {}
+
+    def handler(request):
+        seen[request.url.path] = request.headers.get("range")
+        return httpx.Response(206, content=b"\x00" * SEGMENT_PREFIX_BYTES)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    await e._fetch("https://gw.test/a.ts", None, None, None,
+                   prefix_bytes=SEGMENT_PREFIX_BYTES)
+    assert seen["/a.ts"] == f"bytes=0-{SEGMENT_PREFIX_BYTES - 1}"
+
+
+@pytest.mark.asyncio
+async def test_a_gateway_ignoring_the_range_header_still_works():
+    """Nothing depends on the range being honoured; it is an optimisation."""
+    from app.services.enrichment import SEGMENT_PREFIX_BYTES
+
+    handler = lambda r: httpx.Response(200, content=b"\x01" * (SEGMENT_PREFIX_BYTES * 3))
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    body = await e._fetch("https://gw.test/a.ts", None, None, None,
+                          prefix_bytes=SEGMENT_PREFIX_BYTES)
+    # Trimmed locally, so a 2.7MB body is not carried through decryption.
+    assert len(body) == SEGMENT_PREFIX_BYTES
+
+
+@pytest.mark.asyncio
+async def test_a_ranged_encrypted_segment_is_truncated_to_whole_blocks():
+    """A ranged fetch lands mid-block. CBC decrypts from the start regardless,
+    so the remainder is dropped rather than raising."""
+    from app.services.enrichment import _KEY_CACHE
+
+    _KEY_CACHE.clear()
+
+    def handler(request):
+        if request.url.path.endswith("enc.key"):
+            return httpx.Response(200, content=b"k" * 16)
+        # Deliberately not a multiple of 16.
+        return httpx.Response(206, content=b"\x00" * 1001)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    body = await e._segment_bytes(
+        "https://gw.test/cam01/index.m3u8", parse_manifest(SENTINEL), None, None, None
+    )
+    assert len(body) <= 992  # 62 whole blocks
+    _KEY_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_the_manifest_fetch_also_retries():
+    """It used to have its own inline request with a shorter timeout and no
+    retry, which made it the failure point on an erratic gateway -- the segment
+    path was hardened and the step before it was not."""
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, text=MASTER)
+
+    e = StreamEnricher(
+        transport=httpx.MockTransport(handler), retry_backoff_s=0, probe_media=False
+    )
+    m = await e.enrich("https://gw.test/i.m3u8")
+    assert m.resolution == "1920x1080"
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_transport_error_names_the_stage_that_failed():
+    """httpx timeout exceptions carry an empty message, so a bare repr reads as
+    "ReadTimeout: " and tells an operator nothing."""
+    def boom(request):
+        raise httpx.ReadTimeout("")
+
+    e = StreamEnricher(transport=httpx.MockTransport(boom), retry_backoff_s=0)
+    m = await e.enrich("https://gw.test/i.m3u8")
+    assert m.error == "ReadTimeout fetching manifest"
