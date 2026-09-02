@@ -4224,6 +4224,24 @@
               "title": "Level",
               "type": "string"
             }
+          },
+          {
+            "description": "Case-insensitive substring of the boundary name. Every other listing endpoint takes `q`, and a caller who assumes this one does too would otherwise get the whole list back and quietly use the wrong district -- Gujarat spells several of them with a space (`Sabar Kantha`, `Panch Mahals`), so exact-match guessing fails.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring of the boundary name. Every other listing endpoint takes `q`, and a caller who assumes this one does too would otherwise get the whole list back and quietly use the wrong district -- Gujarat spells several of them with a space (`Sabar Kantha`, `Panch Mahals`), so exact-match guessing fails.",
+              "title": "Q"
+            }
           }
         ],
         "responses": {

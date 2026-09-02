@@ -94,3 +94,79 @@ async def test_an_alias_added_through_the_api_is_used_by_the_geocoder(
     assert result is not None
     assert result.district_name == "Ahmadabad"
     assert result.precision == "district"
+
+
+# ---- name search -------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_boundaries_can_be_searched_by_name(api_client, session):
+    """Every other listing takes `q`. Without it here, a caller who assumes it
+    does gets the whole list and quietly uses the wrong district -- which is
+    exactly how a coverage run gets attributed to the wrong place."""
+    from app.models.admin_boundary import AdminBoundary
+
+    session.add_all([
+        AdminBoundary(
+            name="Rajkot", level="district", code="1",
+            geom="SRID=4326;POLYGON((70 22,71 22,71 23,70 23,70 22))",
+        ),
+        AdminBoundary(
+            name="Bhavnagar", level="district", code="2",
+            geom="SRID=4326;POLYGON((71 21,72 21,72 22,71 22,71 21))",
+        ),
+    ])
+    await session.commit()
+
+    body = (await api_client.get("/api/v1/boundaries?q=rajkot")).json()
+    assert [b["name"] for b in body] == ["Rajkot"]
+
+
+@pytest.mark.asyncio
+async def test_the_search_is_a_case_insensitive_substring(api_client, session):
+    """Gujarat spells several districts with a space -- `Sabar Kantha`,
+    `Panch Mahals` -- so exact-match guessing fails."""
+    from app.models.admin_boundary import AdminBoundary
+
+    session.add(
+        AdminBoundary(
+            name="Sabar Kantha", level="district", code="3",
+            geom="SRID=4326;POLYGON((72 23,73 23,73 24,72 24,72 23))",
+        )
+    )
+    await session.commit()
+
+    for term in ("sabar", "KANTHA", "bar Kan"):
+        body = (await api_client.get(f"/api/v1/boundaries?q={term}")).json()
+        assert [b["name"] for b in body] == ["Sabar Kantha"], term
+
+
+@pytest.mark.asyncio
+async def test_a_search_matching_nothing_returns_an_empty_list(api_client, session):
+    """Not the whole list, which is the failure mode being fixed."""
+    from app.models.admin_boundary import AdminBoundary
+
+    session.add(
+        AdminBoundary(
+            name="Rajkot", level="district", code="1",
+            geom="SRID=4326;POLYGON((70 22,71 22,71 23,70 23,70 22))",
+        )
+    )
+    await session.commit()
+
+    assert (await api_client.get("/api/v1/boundaries?q=zzzznope")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_omitting_the_search_still_lists_everything(api_client, session):
+    from app.models.admin_boundary import AdminBoundary
+
+    session.add_all([
+        AdminBoundary(
+            name=f"D{i}", level="district", code=str(i),
+            geom="SRID=4326;POLYGON((70 22,71 22,71 23,70 23,70 22))",
+        )
+        for i in range(3)
+    ])
+    await session.commit()
+
+    assert len((await api_client.get("/api/v1/boundaries")).json()) == 3

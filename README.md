@@ -76,6 +76,7 @@ differently.
 |---|---|
 | [What every screen does](UI-GUIDE.md) | The portal, page by page |
 | [Architecture & workflow](ARCHITECTURE.md) | How it fits together, and where to optimise |
+| [Notes for Model 2](MODEL-2-STREAMING.md) | Playing the sandbox feeds, and what we already provide |
 | [High-Level Design](docs/HLD.md) | Architecture, data flow, integration methodology |
 | [Onboarding a department](docs/api/onboarding-guide.md) | The four ways data gets in |
 | [Where metadata comes from](docs/api/metadata.md) | Deriving what a source omits |

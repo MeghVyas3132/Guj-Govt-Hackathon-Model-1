@@ -39,21 +39,32 @@ class AliasRead(BaseModel):
 @router.get("", response_model=list[BoundaryRead], summary="List boundaries")
 async def list_boundaries(
     level: str = Query("district"),
+    q: str | None = Query(
+        None,
+        description=(
+            "Case-insensitive substring of the boundary name. Every other "
+            "listing endpoint takes `q`, and a caller who assumes this one does "
+            "too would otherwise get the whole list back and quietly use the "
+            "wrong district -- Gujarat spells several of them with a space "
+            "(`Sabar Kantha`, `Panch Mahals`), so exact-match guessing fails."
+        ),
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> list[BoundaryRead]:
-    rows = (
-        await session.execute(
-            select(
-                AdminBoundary.id,
-                AdminBoundary.name,
-                AdminBoundary.level,
-                AdminBoundary.code,
-                (func.ST_Area(AdminBoundary.geom) / 1_000_000).label("area_km2"),
-            )
-            .where(AdminBoundary.level == level)
-            .order_by(AdminBoundary.name)
+    stmt = (
+        select(
+            AdminBoundary.id,
+            AdminBoundary.name,
+            AdminBoundary.level,
+            AdminBoundary.code,
+            (func.ST_Area(AdminBoundary.geom) / 1_000_000).label("area_km2"),
         )
-    ).all()
+        .where(AdminBoundary.level == level)
+        .order_by(AdminBoundary.name)
+    )
+    if q:
+        stmt = stmt.where(AdminBoundary.name.ilike(f"%{q.strip()}%"))
+    rows = (await session.execute(stmt)).all()
     return [
         BoundaryRead(
             id=r.id, name=r.name, level=r.level, code=r.code,
