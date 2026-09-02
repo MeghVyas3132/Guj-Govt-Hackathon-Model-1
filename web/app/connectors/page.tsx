@@ -126,7 +126,7 @@ export default function ConnectorsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[56rem] p-6">
+    <div className="mx-auto max-w-[56rem] p-6">
       <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Source connectors</h1>
       <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         Onboarding a department&rsquo;s camera system is a row here plus a field mapping.
@@ -309,6 +309,6 @@ export default function ConnectorsPage() {
           </button>
         </form>
       </section>
-    </main>
+    </div>
   );
 }

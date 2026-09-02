@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -565,8 +566,35 @@ async def camera_preview_segment(
     endpoint = await _primary_hls(session, camera)
     secret, cookie, header = await _stream_auth(session, camera, endpoint)
 
+    proxy = StreamProxy()
+    is_playlist = target.split("?")[0].lower().endswith((".m3u8", ".m3u"))
+
+    # A variant playlist has to be read whole so its own URLs can be rewritten;
+    # anything else is media and is streamed straight through.
+    if is_playlist:
+        try:
+            body, _ = await proxy.fetch(
+                target,
+                allowed_origin=endpoint.url,
+                secret=secret,
+                cookie_name=cookie,
+                header_name=header,
+            )
+        except UpstreamError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+        return Response(
+            content=rewrite_manifest(
+                body.decode("utf-8", errors="replace"),
+                target,
+                f"/api/v1/cameras/{camera_id}/preview-segment",
+            ),
+            media_type="application/vnd.apple.mpegurl",
+            headers={"Cache-Control": "no-store"},
+        )
+
     try:
-        body, content_type = await StreamProxy().fetch(
+        body, content_type = await proxy.open_stream(
             target,
             # Confined to the host this camera's own endpoint points at, so a
             # crafted `target` cannot use the registry's network position to
@@ -579,22 +607,12 @@ async def camera_preview_segment(
     except UpstreamError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
-    # A variant playlist is itself a manifest and needs the same rewriting, or
-    # its own segments would be requested cross-origin and fail.
-    if any(t in content_type for t in MANIFEST_TYPES) or body.startswith(b"#EXTM3U"):
-        rewritten = rewrite_manifest(
-            body.decode("utf-8", errors="replace"),
-            target,
-            f"/api/v1/cameras/{camera_id}/preview-segment",
-        )
-        return Response(
-            content=rewritten,
-            media_type="application/vnd.apple.mpegurl",
-            headers={"Cache-Control": "no-store"},
-        )
-
-    return Response(
-        content=body,
+    # Streamed rather than buffered. Holding the whole segment first made our
+    # time-to-first-byte the gateway's total download time, and hls.js abandons
+    # a fragment whose first byte has not arrived within 10s -- so every segment
+    # aborted in a loop and the player showed a black rectangle.
+    return StreamingResponse(
+        body,
         media_type=content_type,
         # Segments are immutable once published; the key is small and constant.
         headers={"Cache-Control": "private, max-age=300"},

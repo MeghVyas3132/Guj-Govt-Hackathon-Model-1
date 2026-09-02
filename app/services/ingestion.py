@@ -155,7 +155,13 @@ class IngestionService:
                     resolved.metadata[f"unmapped_{dimension}"] = str(raw_term)
                     resolved.warnings.append(term_warning)
 
-            validated = self.validator.validate(resolved.values)
+            validated = self.validator.validate(
+                resolved.values,
+                column_map=resolver.column_map,
+                # The raw keys the department actually sent, so a missing field
+                # can be explained against the file in front of them.
+                source_columns=list(record.payload),
+            )
             warnings = resolved.warnings + validated.warnings
             external_id = resolved.values.get("external_camera_id")
 

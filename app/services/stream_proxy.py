@@ -130,6 +130,77 @@ class StreamProxy:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.transport = transport
 
+    async def open_stream(
+        self,
+        url: str,
+        *,
+        allowed_origin: str,
+        secret: str | None = None,
+        cookie_name: str | None = None,
+        header_name: str | None = None,
+    ):
+        """Yield an upstream body as it arrives, rather than after it lands.
+
+        The difference is not throughput, it is time-to-first-byte. Buffering a
+        whole segment before answering makes our TTFB the gateway's *total*
+        download time -- 11 seconds and worse on this gateway -- and hls.js
+        abandons a fragment whose first byte has not arrived in 10s. The symptom
+        is a player that reports the manifest fine, then aborts every segment in
+        a loop and shows a black rectangle forever.
+
+        Returns (aiter_bytes, content_type). The caller must consume or close it.
+        """
+        if not _same_origin(allowed_origin, url):
+            raise UpstreamError(400, "Target is not on the camera's own stream host")
+
+        cookies = {cookie_name: secret} if (secret and cookie_name) else None
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
+        if secret and header_name:
+            headers[header_name] = secret
+
+        client = httpx.AsyncClient(
+            transport=self.transport,
+            timeout=TIMEOUT,
+            cookies=cookies,
+            headers=headers,
+            follow_redirects=False,
+        )
+        try:
+            request = client.build_request("GET", url)
+            response = await client.send(request, stream=True)
+        except httpx.HTTPError as exc:
+            await client.aclose()
+            raise UpstreamError(502, f"{type(exc).__name__}: {exc}") from exc
+
+        if response.status_code in (301, 302, 303, 307, 308):
+            await response.aclose()
+            await client.aclose()
+            raise UpstreamError(
+                502, "Gateway redirected, which usually means the session expired"
+            )
+        if response.status_code >= 400:
+            await response.aclose()
+            await client.aclose()
+            raise UpstreamError(502, f"Gateway returned HTTP {response.status_code}")
+
+        media_type = content_type_for(url, response.headers.get("content-type", ""))
+
+        async def body():
+            sent = 0
+            try:
+                async for chunk in response.aiter_bytes():
+                    sent += len(chunk)
+                    if sent > MAX_BODY:
+                        # Still bounded, just enforced as it flows rather than
+                        # after the whole thing is in memory.
+                        break
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        return body(), media_type
+
     async def fetch(
         self,
         url: str,

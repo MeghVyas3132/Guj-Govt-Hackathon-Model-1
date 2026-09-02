@@ -108,7 +108,7 @@ export default function NewCameraPage() {
   const directional = !["ptz", "dome"].includes(form.camera_type);
 
   return (
-    <main className="mx-auto max-w-[44rem] p-6">
+    <div className="mx-auto max-w-[44rem] p-6">
       <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Add a camera</h1>
       <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         Goes through the same validation, vocabulary and dedupe as a CSV import or a
@@ -292,7 +292,7 @@ export default function NewCameraPage() {
           </button>
         </div>
       </form>
-    </main>
+    </div>
   );
 }
 

@@ -11,3 +11,6 @@ data/*.pmtiles
 .ruff_cache/
 *.egg-info/
 keys/
+
+# Playwright MCP session artifacts (snapshots, console logs, upload fixtures)
+.playwright-mcp/

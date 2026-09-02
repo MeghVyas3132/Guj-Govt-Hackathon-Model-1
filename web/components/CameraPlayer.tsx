@@ -89,6 +89,27 @@ export function CameraPlayer({
           errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 },
         },
       },
+      // Fragments need their own budget, and the default is far too tight for
+      // this gateway: hls.js abandons a fragment whose first byte has not
+      // arrived within 10s, and this one routinely takes longer under load.
+      // Leaving it at the default aborted every segment in a loop and showed a
+      // black rectangle while the manifest loaded perfectly.
+      fragLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 45_000,
+          maxLoadTimeMs: 120_000,
+          timeoutRetry: { maxNumRetry: 2, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+          errorRetry: { maxNumRetry: 1, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+        },
+      },
+      keyLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 30_000,
+          maxLoadTimeMs: 60_000,
+          timeoutRetry: { maxNumRetry: 2, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+          errorRetry: { maxNumRetry: 1, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+        },
+      },
     });
 
     instance.on(Hls.Events.ERROR, (_event, data) => {

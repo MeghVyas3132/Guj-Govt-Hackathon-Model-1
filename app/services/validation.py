@@ -17,6 +17,33 @@ class ValidationResult:
         return not self.errors
 
 
+def _mapping_hint(
+    field: str,
+    column_map: dict[str, str] | None,
+    source_columns: list[str] | None,
+) -> str:
+    """Explain a missing required field in terms of the operator's own file."""
+    if not column_map:
+        return ""
+
+    # column_map is {their column: our field}; we need the reverse.
+    expected = [src for src, dest in column_map.items() if dest == field]
+    if not expected:
+        return (
+            f" This department's field mapping does not say which column supplies "
+            f"{field}; add one in the department's field mapping."
+        )
+
+    present = set(source_columns or [])
+    if present and not present.intersection(expected):
+        found = ", ".join(sorted(present)[:8]) or "none"
+        return (
+            f" This department reads it from column {' or '.join(repr(e) for e in expected)}, "
+            f"which is not in the file. Columns found: {found}."
+        )
+    return ""
+
+
 class CameraValidator:
     # DATE columns fed from CSV or JSON arrive as strings. Without coercion the
     # failure surfaces at flush time as an opaque asyncpg encoding error rather
@@ -30,7 +57,20 @@ class CameraValidator:
 
     REQUIRED = ("external_camera_id", "latitude", "longitude")
 
-    def validate(self, values: dict[str, Any]) -> ValidationResult:
+    def validate(
+        self,
+        values: dict[str, Any],
+        column_map: dict[str, str] | None = None,
+        source_columns: list[str] | None = None,
+    ) -> ValidationResult:
+        """Validate one resolved record.
+
+        `column_map` and `source_columns` are optional and exist only to make the
+        error actionable. "external_camera_id is required" is true but useless to
+        someone looking at a spreadsheet with no such column: what they need to
+        know is which of *their* columns this department reads it from, and that
+        the file did not contain it.
+        """
         result = ValidationResult(values=dict(values))
 
         for name in self.REQUIRED:
@@ -38,7 +78,8 @@ class CameraValidator:
                 result.errors.append(
                     ErrorDetail(
                         code="missing_required_field",
-                        message=f"{name} is required.",
+                        message=f"{name} is required."
+                        + _mapping_hint(name, column_map, source_columns),
                         field=name,
                     )
                 )

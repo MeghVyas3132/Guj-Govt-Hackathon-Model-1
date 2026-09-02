@@ -74,7 +74,7 @@ export default function CamerasPage() {
   const filtered = Boolean(query || status);
 
   return (
-    <main className="mx-auto max-w-[76rem] p-6">
+    <div className="mx-auto max-w-[76rem] p-6">
       <PageHeader
         title="Cameras"
         description={
@@ -212,6 +212,6 @@ export default function CamerasPage() {
           </button>
         </div>
       )}
-    </main>
+    </div>
   );
 }

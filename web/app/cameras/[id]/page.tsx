@@ -118,15 +118,15 @@ export default function CameraDetailPage() {
 
   if (error) {
     return (
-      <main className="mx-auto max-w-[56rem] p-6">
+      <div className="mx-auto max-w-[56rem] p-6">
         <Notice tone="error" title="Could not load this camera">
           {error}
         </Notice>
-      </main>
+      </div>
     );
   }
 
-  if (!camera) return <main className="p-8 text-sm text-ink-faint">Loading…</main>;
+  if (!camera) return <div className="p-8 text-sm text-ink-faint">Loading…</div>;
 
   const geocoded = camera.metadata?.geocode_precision === "district";
   const unmapped = Object.entries(camera.metadata ?? {}).filter(([k]) =>
@@ -135,7 +135,7 @@ export default function CameraDetailPage() {
   const stream = camera.metadata?.stream as StreamMetadata | undefined;
 
   return (
-    <main className="mx-auto max-w-[56rem] p-6">
+    <div className="mx-auto max-w-[56rem] p-6">
       <Link href="/cameras" className="text-[length:var(--text-sm)] text-ink-muted hover:text-ink">
         ← All cameras
       </Link>
@@ -412,7 +412,7 @@ export default function CameraDetailPage() {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

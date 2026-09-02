@@ -41,7 +41,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
-    <main className="mx-auto max-w-[64rem] p-6">
+    <div className="mx-auto max-w-[64rem] p-6">
       <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Administration</h1>
       <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         The registry&rsquo;s configuration. Everything here is data — adding a camera
@@ -83,7 +83,7 @@ export default function AdminPage() {
       {tab === "Place aliases" && <Aliases onError={setError} onNotice={setNotice} />}
       {tab === "API keys" && <Keys onError={setError} onNotice={setNotice} />}
       {tab === "Audit" && <Audit onError={setError} />}
-    </main>
+    </div>
   );
 }
 

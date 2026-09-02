@@ -111,3 +111,56 @@ def test_a_real_bool_or_int_passes_through_untouched():
     )
     assert result.values["has_night_vision"] is True
     assert result.values["retention_days"] == 30
+
+
+# ---- a missing field must be explainable from the operator's own file --------
+
+def test_a_missing_field_names_the_column_the_department_reads_it_from():
+    """"external_camera_id is required" is true but useless to someone looking
+    at a spreadsheet with no such column."""
+    result = CameraValidator().validate(
+        {},
+        column_map={"AssetCode": "external_camera_id"},
+        source_columns=["cam_id", "name", "lat", "lng"],
+    )
+    message = next(e.message for e in result.errors if e.field == "external_camera_id")
+    assert "'AssetCode'" in message
+    assert "not in the file" in message
+    assert "cam_id" in message  # what they actually sent
+
+
+def test_a_field_the_mapping_never_mentions_says_so():
+    """Different fix: the department's mapping is incomplete, not the file."""
+    result = CameraValidator().validate(
+        {"external_camera_id": "x", "latitude": 23.0},
+        column_map={"AssetCode": "external_camera_id"},
+        source_columns=["AssetCode"],
+    )
+    message = next(e.message for e in result.errors if e.field == "longitude")
+    assert "does not say which column supplies" in message
+
+
+def test_no_hint_is_added_when_the_column_was_present():
+    """The column exists and is simply empty; naming it would mislead."""
+    result = CameraValidator().validate(
+        {},
+        column_map={"AssetCode": "external_camera_id"},
+        source_columns=["AssetCode"],
+    )
+    message = next(e.message for e in result.errors if e.field == "external_camera_id")
+    assert message == "external_camera_id is required."
+
+
+def test_no_hint_without_a_mapping():
+    """Manual entry and the API have no column map; the bare message is right."""
+    result = CameraValidator().validate({})
+    assert all(e.message.endswith("is required.") for e in result.errors)
+
+
+def test_several_fields_missing_produce_distinct_errors():
+    """They share a code, so anything keying on code alone loses some."""
+    result = CameraValidator().validate({})
+    codes = [e.code for e in result.errors]
+    fields = [e.field for e in result.errors]
+    assert codes.count("missing_required_field") == 3
+    assert sorted(fields) == ["external_camera_id", "latitude", "longitude"]

@@ -96,7 +96,7 @@ export default function OnboardingPage() {
   const problems = report?.rows.filter((r) => r.errors.length || r.warnings.length) ?? [];
 
   return (
-    <main className="mx-auto max-w-[56rem] p-6">
+    <div className="mx-auto max-w-[56rem] p-6">
       <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Bulk onboarding</h1>
       <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
         Upload a department&rsquo;s camera list. Validate first to see exactly which rows
@@ -221,8 +221,16 @@ export default function OnboardingPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        {row.errors.map((e) => (
-                          <p key={e.code} className="text-[var(--state-offline-ink)]">
+                        {row.errors.map((e, i) => (
+                          // Keyed on field as well as code: one row commonly
+                          // fails the same way on several fields (latitude and
+                          // longitude are both missing_required_field), and a
+                          // duplicate key lets React drop or duplicate an error
+                          // the operator needs to see.
+                          <p
+                            key={`${e.code}:${e.field ?? i}`}
+                            className="text-[var(--state-offline-ink)]"
+                          >
                             <span className="font-mono text-xs">{e.code}</span>{" "}
                             {e.message}
                           </p>
@@ -247,7 +255,7 @@ export default function OnboardingPage() {
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }
 
