@@ -129,3 +129,18 @@ class EnrichmentReport(BaseModel):
     updated: int
     failed: int
     results: list[EnrichmentResult] = Field(default_factory=list)
+
+
+class CameraBounds(BaseModel):
+    """The extent of a set of cameras, for framing a map.
+
+    All four edges are None when nothing matched. A client should read that as
+    "keep the current view" rather than as an error or as a zero-area box at
+    Null Island.
+    """
+
+    west: float | None = None
+    south: float | None = None
+    east: float | None = None
+    north: float | None = None
+    count: int = 0

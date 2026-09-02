@@ -32,6 +32,7 @@ python -m seeds.connectors    # then sync it: the 30 sandbox cameras, live
 # python -m seeds.synthetic 80000
 
 uvicorn app.main:app --port 8000
+arq app.workers.tasks.WorkerSettings   # probes camera health every 5 minutes
 cd web && npm install && npm run dev
 ```
 

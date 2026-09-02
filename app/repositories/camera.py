@@ -1,6 +1,7 @@
 from typing import Any
 from uuid import UUID
 
+from geoalchemy2 import Geometry
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,6 +107,30 @@ class CameraRepository:
         """Total matches ignoring pagination, for the Page envelope."""
         stmt = self._apply(select(func.count()).select_from(Camera), filters)
         return (await self.session.execute(stmt)).scalar_one()
+
+    async def bounds(self, filters: CameraFilter) -> "CameraBounds":
+        """The extent of the matching cameras.
+
+        Computed in PostGIS rather than by paging rows out: the point of this is
+        to frame a map over a set too large to send to a browser.
+        """
+        from app.schemas.camera import CameraBounds
+
+        stmt = select(
+            func.min(func.ST_XMin(Camera.location.cast(Geometry))),
+            func.min(func.ST_YMin(Camera.location.cast(Geometry))),
+            func.max(func.ST_XMax(Camera.location.cast(Geometry))),
+            func.max(func.ST_YMax(Camera.location.cast(Geometry))),
+            func.count(),
+        ).select_from(Camera)
+        stmt = self._apply(stmt, filters)
+
+        west, south, east, north, count = (await self.session.execute(stmt)).one()
+        if not count or west is None:
+            return CameraBounds(count=0)
+        return CameraBounds(
+            west=west, south=south, east=east, north=north, count=int(count)
+        )
 
     async def list_nearby(
         self, filters: CameraFilter, limit: int = 50

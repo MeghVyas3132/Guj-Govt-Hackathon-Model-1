@@ -87,3 +87,38 @@ async def test_summary_counts_by_status_and_downtime_band(api_client, session, c
     assert summary["online"] == 1
     assert summary["maintenance"] == 1
     assert summary["offline_over_7d"] == 1
+
+
+# ---- on-demand probe --------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_a_probe_can_be_triggered_on_demand(api_client, session, monkeypatch):
+    """A registry whose worker has never started shows every camera as unknown,
+    which is indistinguishable from a fleet that is genuinely unreachable."""
+    import app.workers.tasks as tasks
+
+    async def fake_probe(ctx, *, session_factory=None, probe=None):
+        return {"checked": 7, "changed": 3}
+
+    monkeypatch.setattr(tasks, "probe_cameras", fake_probe)
+
+    response = await api_client.post("/api/v1/health/probe")
+    assert response.status_code == 200
+    assert response.json() == {"checked": 7, "changed": 3}
+
+
+@pytest.mark.asyncio
+async def test_probing_requires_the_health_write_scope(session):
+    """Probing writes observations and changes camera status; it is not a read."""
+    from tests.api.test_rbac import client_for, headers_for, make_user
+
+    analyst = await make_user(session, "analyst")
+    async with await client_for(session, headers_for(analyst)) as client:
+        assert (await client.post("/api/v1/health/probe")).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_probe_over_an_empty_registry_reports_zero(api_client):
+    response = await api_client.post("/api/v1/health/probe")
+    assert response.status_code == 200
+    assert response.json()["checked"] == 0

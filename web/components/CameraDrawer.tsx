@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { CameraPlayer } from "@/components/CameraPlayer";
 import { apiFetch } from "@/lib/session";
 
 // The subset of StreamEndpointRead the drawer renders. `reachability` is the field
@@ -73,7 +74,7 @@ export function CameraDrawer({
   return (
     <aside
       data-testid="camera-drawer"
-      className="absolute right-0 top-0 z-20 h-full w-96 overflow-y-auto bg-white p-5 shadow-xl"
+      className="absolute right-0 top-0 z-[var(--z-modal)] h-full w-[26rem] overflow-y-auto border-l border-line bg-surface p-5 shadow-[-4px_0_24px_rgba(0,0,0,0.12)]"
     >
       <button
         type="button"
@@ -89,6 +90,20 @@ export function CameraDrawer({
         {camera.camera_type} · {camera.status}
       </p>
 
+      {/* The picture first. Someone who clicked a dot on a map wants to see what
+          that camera sees; the URLs below are for the systems that consume it.
+          Rendered only once the endpoints are known, so a camera with no HLS
+          shows an explanation rather than a player that cannot work. */}
+      {streams !== null && (
+        <div className="mb-5">
+          <CameraPlayer
+            cameraId={camera.id}
+            label={camera.camera_uid}
+            playable={streams.some((s) => s.protocol === "hls")}
+          />
+        </div>
+      )}
+
       <h3 className="mb-2 text-[length:var(--text-xs)] font-medium text-ink-muted">
         Stream endpoints
       </h3>
@@ -100,7 +115,7 @@ export function CameraDrawer({
       ) : (
         <ul className="space-y-2" data-testid="stream-list">
           {streams.map((s) => (
-            <li key={s.url} className="rounded border p-2 text-xs">
+            <li key={s.url} className="rounded-[4px] border border-line bg-sunken p-2 text-[length:var(--text-xs)]">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold uppercase">
                   {s.protocol}

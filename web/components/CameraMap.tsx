@@ -122,8 +122,12 @@ export function CameraMap() {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
       },
+      // A starting view, immediately replaced by fitBounds once the extent of
+      // the actual data is known. Hardcoding Ahmedabad at z12 meant a registry
+      // whose cameras are elsewhere opened onto an empty map, which reads as a
+      // broken tile layer rather than as the wrong viewport.
       center: [72.5714, 23.0225],
-      zoom: 12,
+      zoom: 6,
     });
     map.current = instance;
 
@@ -262,6 +266,38 @@ export function CameraMap() {
     if (!styleReady) return;
     const source = map.current?.getSource("cameras") as VectorTileSource | undefined;
     source?.setTiles([tileUrl(appliedQuery)]);
+  }, [appliedQuery, styleReady]);
+
+  // Frame the map on whatever the current filter actually matches. Runs on the
+  // filter, not just on mount, so narrowing to one district moves the view to
+  // that district instead of leaving the operator to hunt for it.
+  useEffect(() => {
+    if (!styleReady) return;
+    let cancelled = false;
+    const suffix = appliedQuery ? `?${appliedQuery}` : "";
+
+    apiFetch(`/api/v1/cameras/bounds${suffix}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        if (cancelled || !b || !b.count || b.west === null) return;
+        // A single point, or several cameras sharing one district-level
+        // position, gives a zero-area box. fitBounds on that zooms to maximum,
+        // so it is padded into something a person can actually read.
+        const pad = 0.05;
+        const flat = b.east - b.west < 1e-6 && b.north - b.south < 1e-6;
+        map.current?.fitBounds(
+          [
+            [b.west - (flat ? pad : 0), b.south - (flat ? pad : 0)],
+            [b.east + (flat ? pad : 0), b.north + (flat ? pad : 0)],
+          ],
+          { padding: 60, maxZoom: 13, duration: 600 },
+        );
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, [appliedQuery, styleReady]);
 
   // The runs a coverage overlay can be drawn from. Fetched once: a run is

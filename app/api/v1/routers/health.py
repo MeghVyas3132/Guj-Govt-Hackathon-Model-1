@@ -123,3 +123,38 @@ async def history(
         }
         for r in rows
     ]
+
+
+class ProbeAck(BaseModel):
+    checked: int
+    changed: int
+
+
+@router.post(
+    "/probe",
+    response_model=ProbeAck,
+    summary="Probe a batch of cameras now",
+    description=(
+        "Runs the same check the scheduled worker runs, on demand. Exists because "
+        "a registry whose worker has never started shows every camera as "
+        "`unknown`, which is indistinguishable from a fleet that is genuinely "
+        "unreachable. Least-recently-checked cameras go first, so repeated calls "
+        "rotate fairly across a fleet larger than one batch."
+    ),
+)
+async def probe_now(
+    principal: Principal = Depends(require_scope("health:write")),
+    session: AsyncSession = Depends(get_session),
+) -> ProbeAck:
+    from app.workers.tasks import probe_cameras
+
+    # The worker takes a session factory so it can be driven from here without
+    # a Redis queue in the loop. Its own transaction, committed inside.
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def existing_session():
+        yield session
+
+    result = await probe_cameras({}, session_factory=existing_session)
+    return ProbeAck(**result)

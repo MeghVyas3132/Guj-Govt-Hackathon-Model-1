@@ -23,6 +23,7 @@ from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.auth import Principal
 from app.schemas.camera import (
+    CameraBounds,
     CameraCreate,
     CameraRead,
     EnrichmentReport,
@@ -281,6 +282,24 @@ async def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="cameras.csv"'},
     )
+
+
+@router.get(
+    "/bounds",
+    response_model=CameraBounds,
+    summary="Geographic extent of the matching cameras",
+    description=(
+        "The bounding box of everything the current filter matches, so a map can "
+        "frame its data instead of guessing. Returns `null` bounds when nothing "
+        "matches, which the client should treat as 'keep the current view'."
+    ),
+)
+async def camera_bounds(
+    filters: CameraFilter = Depends(camera_filter),
+    principal: Principal = Depends(require_scope("cameras:read")),
+    session: AsyncSession = Depends(get_session),
+) -> CameraBounds:
+    return await CameraRepository(session).bounds(filters)
 
 
 @router.get("/{camera_id}", response_model=CameraRead)

@@ -330,6 +330,62 @@
         "title": "BoundaryRead",
         "type": "object"
       },
+      "CameraBounds": {
+        "description": "The extent of a set of cameras, for framing a map.\n\nAll four edges are None when nothing matched. A client should read that as\n\"keep the current view\" rather than as an error or as a zero-area box at\nNull Island.",
+        "properties": {
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "east": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "East"
+          },
+          "north": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "North"
+          },
+          "south": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "South"
+          },
+          "west": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "West"
+          }
+        },
+        "title": "CameraBounds",
+        "type": "object"
+      },
       "CameraBulkItem": {
         "description": "One record in a bulk API onboarding request.\n\n`department_id` is optional here, unlike CameraCreate: the bulk endpoint\ntakes the department as a query parameter, and that is the value the\npermission check runs against. Requiring it per record would make an\nintegrator repeat the same UUID on every row of a nightly export. Supplying\na *different* one is rejected rather than ignored.",
         "properties": {
@@ -2580,6 +2636,24 @@
         "title": "Page[OfflineCamera]",
         "type": "object"
       },
+      "ProbeAck": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "checked",
+          "changed"
+        ],
+        "title": "ProbeAck",
+        "type": "object"
+      },
       "Reachability": {
         "enum": [
           "public_cdn",
@@ -4560,6 +4634,156 @@
         ]
       }
     },
+    "/api/v1/cameras/bounds": {
+      "get": {
+        "description": "The bounding box of everything the current filter matches, so a map can frame its data instead of guessing. Returns `null` bounds when nothing matches, which the client should treat as 'keep the current view'.",
+        "operationId": "camera_bounds_api_v1_cameras_bounds_get",
+        "parameters": [
+          {
+            "description": "Free text over uid, name, address.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free text over uid, name, address.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_ids",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "title": "Department Ids",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "camera_types",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Camera Types",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Statuses",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownership_classes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Ownership Classes",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "district_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "District Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraBounds"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geographic extent of the matching cameras",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
     "/api/v1/cameras/enrich": {
       "post": {
         "description": "Same derivation applied in bulk. `limit` is capped because each camera costs one manifest fetch and one segment decode against the source.",
@@ -6529,6 +6753,72 @@
           }
         },
         "summary": "Currently offline cameras, longest down first",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/health/probe": {
+      "post": {
+        "description": "Runs the same check the scheduled worker runs, on demand. Exists because a registry whose worker has never started shows every camera as `unknown`, which is indistinguishable from a fleet that is genuinely unreachable. Least-recently-checked cameras go first, so repeated calls rotate fairly across a fleet larger than one batch.",
+        "operationId": "probe_now_api_v1_health_probe_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Probe a batch of cameras now",
         "tags": [
           "health"
         ]
