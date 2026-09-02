@@ -34,11 +34,12 @@ function Chips({
             aria-pressed={active}
             data-testid={`filter-${group}-${value}`}
             onClick={() => onToggle(value)}
-            className={`rounded px-2 py-1 text-xs transition-colors ${
-              active
-                ? "bg-[var(--brand)] text-white"
-                : "bg-sunken text-ink hover:bg-[var(--border)]"
-            }`}
+            className={`rounded-[4px] px-2 py-1 text-[length:var(--text-2xs)]
+              transition-colors duration-[var(--duration)] ${
+                active
+                  ? "bg-[var(--brand)] text-white"
+                  : "bg-sunken text-ink-muted hover:bg-[var(--border)] hover:text-ink"
+              }`}
           >
             {value}
           </button>
@@ -48,6 +49,11 @@ function Chips({
   );
 }
 
+/**
+ * Filters for the map. Rendered inside the sidebar rather than floating over the
+ * canvas: it used to be an absolutely-positioned card, which covered the part of
+ * the map most likely to hold cameras and left no room for a list.
+ */
 export function FilterPanel({
   filters,
   onChange,
@@ -58,19 +64,18 @@ export function FilterPanel({
   matchCount: number | null;
 }) {
   return (
-    <div
-      data-testid="filter-panel"
-      className="absolute left-4 top-4 z-10 w-72 rounded-lg bg-white/95 p-4 shadow-lg backdrop-blur"
-    >
-      <div className="mb-3 flex items-baseline justify-between">
-        <span data-testid="match-count" className="text-sm font-semibold text-ink">
-          {matchCount === null ? "…" : `${matchCount} cameras`}
+    <div data-testid="filter-panel" className="border-b border-line p-3">
+      <div className="mb-2.5 flex items-baseline justify-between">
+        <span data-testid="match-count" className="text-[length:var(--text-sm)] font-semibold text-ink">
+          {matchCount === null ? "…" : `${matchCount.toLocaleString()} cameras`}
         </span>
         {!isEmpty(filters) && (
           <button
             type="button"
             data-testid="clear-filters"
-            onClick={() => onChange({ statuses: [], cameraTypes: [], departmentIds: [], q: "" })}
+            onClick={() =>
+              onChange({ statuses: [], cameraTypes: [], departmentIds: [], q: "" })
+            }
             className="text-[length:var(--text-xs)] text-ink-muted underline hover:text-ink"
           >
             clear
@@ -80,13 +85,17 @@ export function FilterPanel({
 
       <input
         data-testid="filter-q"
-        className="mb-3 w-full rounded border px-2 py-1 text-sm"
+        className="mb-3 h-8 w-full rounded-[4px] border border-line-strong bg-surface px-2.5
+          text-[length:var(--text-sm)] text-ink transition-[border-color]
+          duration-[var(--duration)] hover:border-[var(--ink-faint)]"
         placeholder="Search uid, name, address…"
         value={filters.q}
         onChange={(e) => onChange({ ...filters, q: e.target.value })}
       />
 
-      <p className="mb-1 text-[length:var(--text-xs)] font-medium text-ink-muted">Status</p>
+      <p className="mb-1 text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
+        Status
+      </p>
       <div className="mb-3">
         <Chips
           group="status"
@@ -98,7 +107,9 @@ export function FilterPanel({
         />
       </div>
 
-      <p className="mb-1 text-[length:var(--text-xs)] font-medium text-ink-muted">Camera type</p>
+      <p className="mb-1 text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
+        Camera type
+      </p>
       <Chips
         group="type"
         values={TYPES}

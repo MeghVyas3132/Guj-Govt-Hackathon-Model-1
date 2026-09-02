@@ -13,6 +13,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CameraDrawer, type SelectedCamera } from "@/components/CameraDrawer";
+import { CameraList, type CameraListItem } from "@/components/CameraList";
 import { FilterPanel } from "@/components/FilterPanel";
 import { EMPTY_FILTERS, type Filters, toQueryString } from "@/lib/filters";
 
@@ -77,6 +78,26 @@ export function CameraMap() {
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [coverageRun, setCoverageRun] = useState<CoverageRunOption | null>(null);
   const [runs, setRuns] = useState<CoverageRunOption[]>([]);
+  // Set when the operator picks from the list, so the fitBounds effect knows to
+  // stand down: framing the whole filter would immediately undo the fly-to.
+  const pinned = useRef(false);
+
+  function selectFromList(camera: CameraListItem) {
+    pinned.current = true;
+    setSelected({
+      id: camera.id,
+      camera_uid: camera.camera_uid,
+      status: camera.current_status,
+      camera_type: camera.camera_type,
+    });
+    map.current?.flyTo({
+      center: [camera.longitude, camera.latitude],
+      // Past the clustering threshold in app/services/tiles.py, so the camera
+      // renders as itself rather than as a cluster of one.
+      zoom: Math.max(map.current.getZoom(), 13),
+      duration: 800,
+    });
+  }
 
   const query = useMemo(() => toQueryString(filters), [filters]);
 
@@ -280,6 +301,8 @@ export function CameraMap() {
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => {
         if (cancelled || !b || !b.count || b.west === null) return;
+        // The operator has chosen a camera; do not yank the view back out.
+        if (pinned.current) return;
         // A single point, or several cameras sharing one district-level
         // position, gives a zero-area box. fitBounds on that zooms to maximum,
         // so it is padded into something a person can actually read.
@@ -351,15 +374,33 @@ export function CameraMap() {
     // the absolutely-positioned filter panel still visible over it. Not h-screen
     // either: a full viewport height inside the column body would push the page
     // into a scrollbar exactly as tall as the nav.
-    <div className="relative h-full w-full">
+    <div className="flex h-full w-full">
+      {/* The sidebar is the index. A map of clustered dots is a picture, not a
+          way to find one camera among thousands. */}
+      <aside className="flex w-[20rem] shrink-0 flex-col border-r border-line bg-surface">
+        <FilterPanel filters={filters} onChange={setFilters} matchCount={matchCount} />
+        <CameraList
+          query={appliedQuery}
+          selectedId={selected?.id ?? null}
+          onSelect={selectFromList}
+        />
+      </aside>
+
+      <div className="relative min-w-0 flex-1">
       <div ref={container} data-testid="camera-map" className="h-full w-full" />
-      <FilterPanel filters={filters} onChange={setFilters} matchCount={matchCount} />
       <CoverageOverlayControl
         runs={runs}
         selected={coverageRun}
         onSelect={setCoverageRun}
       />
-      <CameraDrawer camera={selected} onClose={() => setSelected(null)} />
+      <CameraDrawer
+        camera={selected}
+        onClose={() => {
+          pinned.current = false;
+          setSelected(null);
+        }}
+      />
+      </div>
     </div>
   );
 }

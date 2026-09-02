@@ -76,10 +76,16 @@ cameras.
 **Dot colour is status:** green online, red offline, amber maintenance, grey
 unknown.
 
-**The filter panel (top-left)** filters by department, camera type, status and
-free-text search. The count updates as you type. Crucially, the filters go to
-*the same endpoint the table uses* — so the map and the Cameras list can never
-disagree about what matches.
+**The sidebar** is the index. A map of clustered dots is a picture, not a way to
+find one camera among thousands — so the filters and a list of every match sit
+beside the canvas. Click a row and the map flies to that camera and opens its
+drawer. The list pages 50 at a time, because this is built for 80,000 cameras
+and no panel should try to render them all.
+
+The filters go to *the same endpoint the Cameras table uses*, so the map, the
+list and the table can never disagree about what matches. The map also frames
+itself on whatever the filter matches, rather than opening on a fixed viewport
+that may contain nothing.
 
 **The coverage overlay (bottom-left)** is off until you pick a run. Once you run
 a coverage analysis on `/coverage`, it appears here as a selectable layer:

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -19,6 +20,7 @@ from app.services.stream_proxy import (
 from app.services.metadata import EnrichmentOutcome, MetadataService
 from app.core.geo import to_point
 from app.models.camera import Camera
+from app.models.department import Department
 from app.models.stream_endpoint import StreamEndpoint
 from app.repositories.camera import CameraRepository
 from app.schemas.auth import Principal
@@ -59,13 +61,18 @@ def _enrichment_report(outcomes: list[EnrichmentOutcome]) -> EnrichmentReport:
     )
 
 
-def _to_read(row: Camera) -> CameraRead:
+def _to_read(row: Camera, department_code: str | None = None) -> CameraRead:
     """Project one ORM row onto the published contract shape.
 
     latitude/longitude are derived from the GEOGRAPHY column rather than stored, and
     `metadata_` is renamed back to its contract name `metadata`. Building the payload
     from __dict__ carries SQLAlchemy's `_sa_instance_state` along; pydantic ignores
     unknown keys, so it is harmless.
+
+    `department_code` lives on the related Department, so it is not in __dict__ and
+    has to be passed in. Without it the field was published and always null, which
+    is worse than not publishing it: a client cannot tell "no department" from
+    "we never filled this in".
     """
     point = to_point(row.location)
     return CameraRead.model_validate(
@@ -74,9 +81,27 @@ def _to_read(row: Camera) -> CameraRead:
             "latitude": point.y,
             "longitude": point.x,
             "metadata": row.metadata_,
+            "department_code": department_code,
             "stream_endpoints": [],
         }
     )
+
+
+async def _department_codes(
+    session: AsyncSession, rows: Sequence[Camera]
+) -> dict[UUID, str]:
+    """Codes for the departments in this page, in one query.
+
+    Looked up per page rather than per row: a page of 500 cameras spans a handful
+    of departments, and a relationship load would issue a query for each.
+    """
+    ids = {row.department_id for row in rows}
+    if not ids:
+        return {}
+    result = await session.execute(
+        select(Department.id, Department.code).where(Department.id.in_(ids))
+    )
+    return {row[0]: row[1] for row in result.all()}
 
 
 def camera_filter(
@@ -124,8 +149,14 @@ async def list_cameras(
 ) -> Page[CameraRead]:
     repo = CameraRepository(session)
     rows = await repo.list(filters, limit=limit, offset=offset)
+    codes = await _department_codes(session, rows)
     total = await repo.count(filters)
-    return Page(items=[_to_read(row) for row in rows], total=total, limit=limit, offset=offset)
+    return Page(
+        items=[_to_read(row, codes.get(row.department_id)) for row in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 # `/nearby` is declared before `/{camera_id}`: FastAPI matches routes in declaration
@@ -202,7 +233,8 @@ async def create_camera(
 
     repo = CameraRepository(session)
     camera = await repo.get_by_external_id(department.id, payload.external_camera_id)
-    return _to_read(camera)
+    codes = await _department_codes(session, [camera])
+    return _to_read(camera, codes.get(camera.department_id))
 
 
 @router.get(
@@ -311,7 +343,8 @@ async def get_camera(
     row = await session.get(Camera, camera_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Camera not found")
-    return _to_read(row)
+    codes = await _department_codes(session, [row])
+    return _to_read(row, codes.get(row.department_id))
 
 
 @router.get(
