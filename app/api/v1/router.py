@@ -9,6 +9,7 @@ from app.api.v1.routers import (
     coverage,
     departments,
     health,
+    lifecycle,
     onboarding,
     tiles,
     vocabulary,
@@ -23,6 +24,7 @@ api_router.include_router(connectors.router)
 api_router.include_router(coverage.router)
 api_router.include_router(departments.router)
 api_router.include_router(health.router)
+api_router.include_router(lifecycle.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(tiles.router)
 api_router.include_router(vocabulary.router)

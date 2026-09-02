@@ -12,6 +12,7 @@ const LINKS: { href: string; label: string; scope?: string }[] = [
   { href: "/cameras", label: "Cameras", scope: "cameras:read" },
   { href: "/health", label: "Health", scope: "cameras:read" },
   { href: "/coverage", label: "Coverage", scope: "coverage:run" },
+  { href: "/ageing", label: "Ageing", scope: "cameras:read" },
   { href: "/onboarding", label: "Onboarding", scope: "cameras:write" },
   { href: "/connectors", label: "Connectors", scope: "admin" },
   { href: "/admin", label: "Admin", scope: "admin" },

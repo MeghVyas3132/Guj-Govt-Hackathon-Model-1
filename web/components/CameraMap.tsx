@@ -36,6 +36,35 @@ function tileUrl(query: string): string {
   return `${API}/api/v1/tiles/cameras/{z}/{x}/{y}.mvt${query ? `?${query}` : ""}`;
 }
 
+function coverageTileUrl(runId: string): string {
+  return `${API}/api/v1/coverage/runs/${runId}/tiles/{z}/{x}/{y}.mvt`;
+}
+
+/**
+ * Coverage shading. Driven by `installed_fraction`, so the ramp reads as "how
+ * much of this cell can any camera see" rather than as a category.
+ *
+ * Deliberately not a red-to-green ramp: red/green is the one pairing that
+ * disappears for the commonest form of colour blindness, and this layer sits
+ * under status dots that are already red and green. A single-hue ramp keeps the
+ * two readings independent.
+ */
+const COVERAGE_FILL: ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["get", "installed_fraction"],
+  0,
+  "#f8d5c8",
+  0.25,
+  "#e8a98d",
+  0.5,
+  "#c97a52",
+  0.75,
+  "#9c4f28",
+  1,
+  "#6b2d0f",
+];
+
 export function CameraMap() {
   const container = useRef<HTMLDivElement>(null);
   // The map lives in a ref, not state: it is a mutable imperative object and
@@ -46,6 +75,8 @@ export function CameraMap() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<SelectedCamera | null>(null);
   const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [coverageRun, setCoverageRun] = useState<CoverageRunOption | null>(null);
+  const [runs, setRuns] = useState<CoverageRunOption[]>([]);
 
   const query = useMemo(() => toQueryString(filters), [filters]);
 
@@ -104,6 +135,40 @@ export function CameraMap() {
         tiles: [tileUrl("")],
         minzoom: 0,
         maxzoom: 22,
+      });
+
+      // Added empty and pointed at a run later. Declaring it up front fixes the
+      // layer order: coverage must sit under every camera layer, and layers can
+      // only be inserted relative to ones that already exist.
+      instance.addSource("coverage", {
+        type: "vector",
+        tiles: [`${API}/api/v1/coverage/runs/none/tiles/{z}/{x}/{y}.mvt`],
+        minzoom: 0,
+        maxzoom: 22,
+      });
+
+      instance.addLayer({
+        id: "coverage-fill",
+        type: "fill",
+        source: "coverage",
+        "source-layer": "coverage",
+        layout: { visibility: "none" },
+        paint: { "fill-color": COVERAGE_FILL, "fill-opacity": 0.55 },
+      });
+
+      instance.addLayer({
+        id: "coverage-outline",
+        type: "line",
+        source: "coverage",
+        "source-layer": "coverage",
+        layout: { visibility: "none" },
+        // Hairline, and only once the cells are big enough on screen for an
+        // outline to describe a shape rather than to fill it in.
+        paint: {
+          "line-color": "#6b2d0f",
+          "line-width": 0.5,
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0, 11, 0.35],
+        },
       });
 
       // app/services/tiles.py switches the MVT layer name by zoom: `camera_clusters`
@@ -199,6 +264,33 @@ export function CameraMap() {
     source?.setTiles([tileUrl(appliedQuery)]);
   }, [appliedQuery, styleReady]);
 
+  // The runs a coverage overlay can be drawn from. Fetched once: a run is
+  // immutable, and the list only grows when someone visits the coverage page.
+  useEffect(() => {
+    apiFetch("/api/v1/coverage/runs?limit=20")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: CoverageRunOption[]) => setRuns(Array.isArray(rows) ? rows : []))
+      .catch(() => setRuns([]));
+  }, []);
+
+  // Point the coverage source at the selected run, and show or hide the layers.
+  useEffect(() => {
+    if (!styleReady) return;
+    const instance = map.current;
+    if (!instance) return;
+
+    const visibility = coverageRun ? "visible" : "none";
+    for (const id of ["coverage-fill", "coverage-outline"]) {
+      if (instance.getLayer(id)) {
+        instance.setLayoutProperty(id, "visibility", visibility);
+      }
+    }
+    if (coverageRun) {
+      const source = instance.getSource("coverage") as VectorTileSource | undefined;
+      source?.setTiles([coverageTileUrl(coverageRun.id)]);
+    }
+  }, [coverageRun, styleReady]);
+
   // The same query string against the list endpoint. It is the shared CameraFilter on
   // the server, so this count and the markers cannot disagree about what matches.
   useEffect(() => {
@@ -226,7 +318,87 @@ export function CameraMap() {
     <div className="relative h-full w-full">
       <div ref={container} data-testid="camera-map" className="h-full w-full" />
       <FilterPanel filters={filters} onChange={setFilters} matchCount={matchCount} />
+      <CoverageOverlayControl
+        runs={runs}
+        selected={coverageRun}
+        onSelect={setCoverageRun}
+      />
       <CameraDrawer camera={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+}
+
+type CoverageRunOption = {
+  id: string;
+  hex_edge_m: number;
+  installed_coverage_pct: number;
+  effective_coverage_pct: number;
+  created_at?: string;
+};
+
+/**
+ * Bottom-left so it never collides with the filter panel or the navigation
+ * controls, and collapsed to a single line until a run is chosen — an overlay
+ * nobody has asked for should not occupy the map.
+ */
+function CoverageOverlayControl({
+  runs,
+  selected,
+  onSelect,
+}: {
+  runs: CoverageRunOption[];
+  selected: CoverageRunOption | null;
+  onSelect: (run: CoverageRunOption | null) => void;
+}) {
+  if (runs.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-4 left-4 z-[var(--z-sticky)] w-[17rem] rounded-[6px] border border-line bg-surface/95 p-3 shadow-[0_2px_12px_rgba(0,0,0,0.10)] backdrop-blur-sm">
+      <label className="mb-1.5 block text-[length:var(--text-2xs)] font-semibold uppercase tracking-[0.04em] text-ink-faint">
+        Coverage overlay
+      </label>
+      <select
+        value={selected?.id ?? ""}
+        onChange={(e) =>
+          onSelect(runs.find((r) => r.id === e.target.value) ?? null)
+        }
+        className="h-8 w-full rounded-[4px] border border-line-strong bg-surface px-2 text-[length:var(--text-sm)] text-ink"
+      >
+        <option value="">Off</option>
+        {runs.map((run) => (
+          <option key={run.id} value={run.id}>
+            {run.installed_coverage_pct.toFixed(1)}% · {run.hex_edge_m}m cells
+            {run.created_at ? ` · ${run.created_at.slice(0, 10)}` : ""}
+          </option>
+        ))}
+      </select>
+
+      {selected && (
+        <>
+          {/* The legend is the ramp itself, so the reader maps colour to number
+              without a lookup table. */}
+          <div
+            aria-hidden
+            className="mt-2.5 h-2 rounded-[2px]"
+            style={{
+              background:
+                "linear-gradient(to right, #f8d5c8, #e8a98d, #c97a52, #9c4f28, #6b2d0f)",
+            }}
+          />
+          <div className="mt-1 flex justify-between text-[length:var(--text-2xs)] tabular-nums text-ink-faint">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+          <p className="mt-2 text-[length:var(--text-2xs)] leading-snug text-ink-muted">
+            Share of each cell any camera can see. Effective coverage is{" "}
+            <strong className="font-semibold text-ink">
+              {selected.effective_coverage_pct.toFixed(1)}%
+            </strong>{" "}
+            once offline cameras are excluded.
+          </p>
+        </>
+      )}
     </div>
   );
 }

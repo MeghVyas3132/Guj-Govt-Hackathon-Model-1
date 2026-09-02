@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { CoverageControls, type CoverageRun } from "@/components/CoverageControls";
+import { LinkButton, Metric, Notice, PageHeader } from "@/components/ui";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -14,81 +15,71 @@ export default function CoveragePage() {
   const offline = run ? run.camera_count - run.online_camera_count : 0;
 
   return (
-    <main className="mx-auto max-w-[64rem] p-6">
-      <h1 className="mb-1 text-[length:var(--text-xl)] font-semibold text-ink">Coverage gap analysis</h1>
-      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
-        How much of a district has camera coverage, and how much of the shortfall is
-        broken cameras rather than absent ones.
-      </p>
+    <div className="mx-auto max-w-[64rem] p-6">
+      <PageHeader
+        title="Coverage gap analysis"
+        description="How much of a district has camera coverage, and how much of the shortfall is broken cameras rather than absent ones."
+      />
 
       <CoverageControls onRun={setRun} />
 
       {run && (
         <>
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-[6px] border border-line bg-surface p-4">
-              <p className="text-[length:var(--text-xs)] font-medium text-ink-muted">
-                Installed coverage
-              </p>
-              <p className="mt-1 text-3xl font-bold tabular-nums">
-                {run.installed_coverage_pct.toFixed(1)}%
-              </p>
-              <p className="text-[length:var(--text-xs)] text-ink-muted">
-                all {run.camera_count.toLocaleString()} cameras
-              </p>
-            </div>
-            <div className="rounded-[6px] border border-line bg-surface p-4">
-              <p className="text-[length:var(--text-xs)] font-medium text-ink-muted">
-                Effective coverage
-              </p>
-              <p className="mt-1 text-3xl font-bold tabular-nums">
-                {run.effective_coverage_pct.toFixed(1)}%
-              </p>
-              <p className="text-[length:var(--text-xs)] text-ink-muted">
-                {run.online_camera_count.toLocaleString()} currently online
-              </p>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <p className="text-xs font-semibold uppercase text-amber-700">
-                Lost to outages
-              </p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-amber-800">
-                {delta?.toFixed(1)}
-                <span className="text-lg">pp</span>
-              </p>
-              <p className="text-xs text-amber-700">
-                {offline.toLocaleString()} cameras down
-              </p>
-            </div>
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Metric
+              label="Installed coverage"
+              value={`${run.installed_coverage_pct.toFixed(1)}%`}
+              foot={`all ${run.camera_count.toLocaleString()} cameras`}
+            />
+            <Metric
+              label="Effective coverage"
+              value={`${run.effective_coverage_pct.toFixed(1)}%`}
+              foot={`${run.online_camera_count.toLocaleString()} currently online`}
+            />
+            <Metric
+              label="Lost to outages"
+              value={
+                <>
+                  {delta?.toFixed(1)}
+                  <span className="ml-0.5 text-[length:var(--text-lg)]">pp</span>
+                </>
+              }
+              foot={`${offline.toLocaleString()} cameras down`}
+              tone={offline > 0 ? "warn" : "default"}
+            />
           </div>
 
           {run.district_located_camera_count > 0 && (
-            <p className="mb-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-              <strong>
-                {run.district_located_camera_count.toLocaleString()} of{" "}
-                {run.camera_count.toLocaleString()} cameras
-              </strong>{" "}
-              have no surveyed position — their location came from a place name and
-              resolves to one point for the whole district. The totals hold, but the
-              spatial distribution of coverage does not.
-            </p>
+            <div className="mb-6">
+              <Notice tone="error" title="Coverage is not spatially reliable">
+                <strong>
+                  {run.district_located_camera_count.toLocaleString()} of{" "}
+                  {run.camera_count.toLocaleString()} cameras
+                </strong>{" "}
+                have no surveyed position — their location came from a place name
+                and resolves to one point for the whole district. The totals hold,
+                but the spatial distribution of coverage does not.
+              </Notice>
+            </div>
           )}
 
-          <div className="flex items-center gap-4">
-            <a
+          <div className="flex flex-wrap items-center gap-4">
+            <LinkButton
+              variant="primary"
               href={`${API}/api/v1/coverage/runs/${run.id}/report.html`}
               target="_blank"
               rel="noreferrer"
-              className="inline-block inline-flex h-8 items-center rounded-[4px] bg-[var(--brand)] px-3 text-[length:var(--text-sm)] font-medium text-white transition-colors duration-[var(--duration)] hover:bg-[var(--brand-hover)]"
             >
               Open full report
-            </a>
+            </LinkButton>
+            <LinkButton href="/map">View on map</LinkButton>
             <span className="text-[length:var(--text-xs)] text-ink-muted">
-              {run.total_cells.toLocaleString()} cells at {run.hex_edge_m}m edge
+              {run.total_cells.toLocaleString()} cells at {run.hex_edge_m}m edge —
+              this run is now selectable as a map overlay.
             </span>
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

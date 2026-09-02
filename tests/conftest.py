@@ -1,3 +1,4 @@
+import os
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -33,6 +34,23 @@ SHIPPED_TERMS = [
 
 @pytest.fixture(scope="session")
 def postgres_url() -> str:
+    """A PostGIS database for the suite.
+
+    Starts a throwaway container by default, which is what makes the suite
+    self-contained. `TEST_DATABASE_URL` overrides that for the two cases where
+    starting one is the wrong move: CI that already provides a service
+    container, and a developer machine loaded enough that container startup
+    times out -- which fails every test at setup with a TimeoutError that looks
+    nothing like the real cause.
+
+    The schema is dropped and recreated per test either way, so pointing this at
+    a real database destroys it. It is read from the environment deliberately:
+    nothing in the repo can name a database that matters.
+    """
+    override = os.environ.get("TEST_DATABASE_URL")
+    if override:
+        yield override
+        return
     with PostgresContainer("postgis/postgis:16-3.4", driver="asyncpg") as pg:
         yield pg.get_connection_url()
 

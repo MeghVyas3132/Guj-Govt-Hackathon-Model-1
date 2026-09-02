@@ -5257,6 +5257,7 @@
     },
     "/api/v1/coverage/runs/{run_id}/tiles/{z}/{x}/{y}.mvt": {
       "get": {
+        "description": "The hex grid a run produced. Each cell carries its classification and both fractions, so a map can shade by installed or by effective coverage without a second request. 204 where the run has no cells, which is what lets a client request a whole viewport without knowing the run's extent.",
         "operationId": "coverage_tile_api_v1_coverage_runs__run_id__tiles__z___x___y__mvt_get",
         "parameters": [
           {
@@ -5298,6 +5299,38 @@
               "minimum": 0,
               "title": "Y",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
             }
           }
         ],
@@ -5770,6 +5803,273 @@
         "summary": "Fleet health counts",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/lifecycle/ageing": {
+      "get": {
+        "description": "Cameras past their service life, out of or nearing AMC expiry, and retaining less footage than policy requires. Every threshold is a parameter: replacement cycles differ by department and procurement round.",
+        "operationId": "ageing_api_v1_lifecycle_ageing_get",
+        "parameters": [
+          {
+            "description": "Defaults to today. Set it to reproduce an earlier report.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to today. Set it to reproduce an earlier report.",
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_life_years",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Service Life Years",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "amc_horizon_days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "maximum": 1095,
+              "minimum": 0,
+              "title": "Amc Horizon Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_retention_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 3650,
+              "minimum": 0,
+              "title": "Min Retention Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ageing Api V1 Lifecycle Ageing Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ageing-infrastructure report",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/lifecycle/ageing.csv": {
+      "get": {
+        "description": "The per-department table, for a procurement spreadsheet.",
+        "operationId": "ageing_csv_api_v1_lifecycle_ageing_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_life_years",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Service Life Years",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "amc_horizon_days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "maximum": 1095,
+              "minimum": 0,
+              "title": "Amc Horizon Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_retention_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 3650,
+              "minimum": 0,
+              "title": "Min Retention Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ageing report as CSV",
+        "tags": [
+          "lifecycle"
         ]
       }
     },

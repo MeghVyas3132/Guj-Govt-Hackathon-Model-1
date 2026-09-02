@@ -115,6 +115,12 @@ async def report(
 @router.get(
     "/runs/{run_id}/tiles/{z}/{x}/{y}.mvt",
     summary="Coverage cells as a vector tile layer",
+    description=(
+        "The hex grid a run produced. Each cell carries its classification and "
+        "both fractions, so a map can shade by installed or by effective coverage "
+        "without a second request. 204 where the run has no cells, which is what "
+        "lets a client request a whole viewport without knowing the run's extent."
+    ),
     response_class=Response,
 )
 async def coverage_tile(
@@ -122,15 +128,27 @@ async def coverage_tile(
     z: int = Path(ge=0, le=22),
     x: int = Path(ge=0),
     y: int = Path(ge=0),
+    principal: Principal = Depends(require_scope("cameras:read")),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     from app.services.tiles import CoverageTileService
 
+    # Checked rather than assumed: an unknown run id would otherwise return 204
+    # for every tile, which renders as a silently empty overlay with no error.
+    if await session.get(CoverageRun, run_id) is None:
+        raise HTTPException(status_code=404, detail="Coverage run not found")
+
+    # A completed run is immutable, so its tiles cache hard. That is the
+    # difference between an overlay that pans smoothly and one that re-queries
+    # PostGIS on every frame -- including the empty tiles, which is most of them
+    # when a district-sized run is viewed at state zoom.
+    cache = {"Cache-Control": "public, max-age=86400, immutable"}
+
     tile = await CoverageTileService(session).tile(run_id, z, x, y)
     if not tile:
-        return Response(status_code=204)
+        return Response(status_code=204, headers=cache)
     return Response(
         content=tile,
         media_type="application/vnd.mapbox-vector-tile",
-        headers={"Cache-Control": "public, max-age=300"},
+        headers=cache,
     )

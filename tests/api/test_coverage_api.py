@@ -182,3 +182,88 @@ async def test_a_tile_outside_the_run_is_204(api_client, district, cameras):
         f"/api/v1/coverage/runs/{created['id']}/tiles/14/1/1.mvt"
     )
     assert tile.status_code == 204
+
+
+# ---- coverage tiles ----------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_a_coverage_tile_requires_authentication(session):
+    """This route shipped with no scope at all, so a coverage grid -- which is a
+    map of where the state cannot see -- was readable by anyone who could reach
+    the port."""
+    from uuid import uuid4
+
+    from httpx import ASGITransport, AsyncClient
+
+    from app.core.db import get_session
+    from app.main import app
+
+    app.dependency_overrides[get_session] = lambda: session
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            f"/api/v1/coverage/runs/{uuid4()}/tiles/12/2873/1778.mvt"
+        )
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_run_is_404_not_a_silently_empty_overlay(api_client):
+    """204 for every tile renders as a blank layer with nothing to debug."""
+    from uuid import uuid4
+
+    response = await api_client.get(
+        f"/api/v1/coverage/runs/{uuid4()}/tiles/12/2873/1778.mvt"
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_tile_outside_the_runs_extent_is_204(api_client, session, seeded_department):
+    """A client pans freely without knowing where the run's cells are."""
+    from app.models.coverage import CoverageRun
+
+    run = CoverageRun(
+        hex_edge_m=250, total_cells=0, camera_count=0, online_camera_count=0,
+        installed_coverage_pct=0.0, effective_coverage_pct=0.0,
+        district_located_camera_count=0,
+    )
+    session.add(run)
+    await session.commit()
+
+    # Null Island: no Gujarat coverage cell can be here.
+    response = await api_client.get(f"/api/v1/coverage/runs/{run.id}/tiles/12/2048/2048.mvt")
+    assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_coverage_tiles_are_cached_immutably(api_client, session):
+    """A completed run never changes, so its tiles must not be re-queried on
+    every pan."""
+    from app.models.coverage import CoverageRun
+
+    run = CoverageRun(
+        hex_edge_m=250, total_cells=0, camera_count=0, online_camera_count=0,
+        installed_coverage_pct=0.0, effective_coverage_pct=0.0,
+        district_located_camera_count=0,
+    )
+    session.add(run)
+    await session.commit()
+
+    response = await api_client.get(f"/api/v1/coverage/runs/{run.id}/tiles/12/2048/2048.mvt")
+    assert "immutable" in response.headers.get("cache-control", "")
+
+
+@pytest.mark.parametrize("z,x,y,status", [
+    (23, 100, 100, 422),
+    (12, -1, 100, 422),
+    (12, 100, -1, 422),
+])
+@pytest.mark.asyncio
+async def test_tile_coordinates_are_validated(api_client, z, x, y, status):
+    from uuid import uuid4
+
+    response = await api_client.get(f"/api/v1/coverage/runs/{uuid4()}/tiles/{z}/{x}/{y}.mvt")
+    assert response.status_code == status
