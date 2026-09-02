@@ -16,7 +16,7 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 
-import { Button, Notice } from "@/components/ui";
+import { Button, EmptyState, Notice } from "@/components/ui";
 import { API, getToken } from "@/lib/session";
 
 type State = "idle" | "loading" | "playing" | "error";
@@ -24,9 +24,14 @@ type State = "idle" | "loading" | "playing" | "error";
 export function CameraPlayer({
   cameraId,
   label,
+  playable = true,
 }: {
   cameraId: string;
   label?: string;
+  /** False when the camera has no HLS endpoint. Renders an explanation instead
+   *  of a player, because offering a control that cannot work and then failing
+   *  with `manifestLoadError` tells the operator nothing they can act on. */
+  playable?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const hls = useRef<Hls | null>(null);
@@ -73,6 +78,17 @@ export function CameraPlayer({
       // would download hundreds of megabytes for a glance at a preview.
       maxBufferLength: 12,
       maxMaxBufferLength: 30,
+      // Our proxy answers 404 when there is no endpoint and 502 when the
+      // gateway refuses. Neither improves on retry, and the default policy
+      // turned one failure into eight identical console errors.
+      manifestLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 20_000,
+          maxLoadTimeMs: 30_000,
+          timeoutRetry: { maxNumRetry: 1, retryDelayMs: 1000, maxRetryDelayMs: 2000 },
+          errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 },
+        },
+      },
     });
 
     instance.on(Hls.Events.ERROR, (_event, data) => {
@@ -80,10 +96,15 @@ export function CameraPlayer({
       // A fatal network error here is almost always the upstream session having
       // expired, which the proxy reports as a 502 with that wording.
       setState("error");
+      const status = data.response?.code;
       setError(
-        data.response?.code === 502
-          ? "The camera gateway refused the request — its session may have expired."
-          : `Playback failed (${data.details}).`,
+        status === 404
+          ? "This camera has no HLS endpoint to preview."
+          : status === 401 || status === 403
+            ? "Your session has expired. Sign in again to preview."
+            : status === 502
+              ? "The camera gateway refused the request — its own session may have expired."
+              : `Playback failed (${data.details}).`,
       );
       instance.destroy();
       hls.current = null;
@@ -99,6 +120,19 @@ export function CameraPlayer({
     instance.loadSource(src);
     instance.attachMedia(element);
     hls.current = instance;
+  }
+
+  if (!playable) {
+    return (
+      <div className="rounded-[6px] border border-line bg-surface">
+        <EmptyState title="No stream registered for this camera">
+          Preview needs an HLS endpoint. This camera was onboarded from a source
+          that supplied metadata but no stream URLs — add them by importing a
+          file that carries them, or by configuring endpoint rules on the
+          department&rsquo;s connector.
+        </EmptyState>
+      </div>
+    );
   }
 
   return (

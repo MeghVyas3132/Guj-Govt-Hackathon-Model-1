@@ -268,3 +268,190 @@ def test_a_zero_segment_count_is_reported_rather_than_hidden():
 
     out = StreamMetadata(manifest=parse_manifest(MASTER)).to_dict()
     assert out["manifest"]["segment_count"] == 0
+
+
+# ---- segment fetching, decryption, and retry ---------------------------------
+
+def test_the_first_segment_and_key_iv_are_captured():
+    """These are what let us fetch one segment ourselves rather than making
+    ffmpeg parse a 7,200-entry playlist to find it."""
+    m = parse_manifest(SENTINEL)
+    assert m.first_segment == "seg00000.ts"
+    assert m.key_iv == "0x00000000000000000000000000000000"
+
+
+def test_only_the_first_segment_is_recorded():
+    body = "#EXTM3U\n#EXTINF:4,\na.ts\n#EXTINF:4,\nb.ts\n"
+    assert parse_manifest(body).first_segment == "a.ts"
+
+
+def test_a_variant_uri_is_not_mistaken_for_a_segment():
+    assert parse_manifest(MASTER).first_segment is None
+
+
+def test_aes128_round_trips():
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    from app.services.enrichment import _decrypt_aes128
+
+    key, iv = b"k" * 16, bytes(16)
+    plain = b"mpeg-ts payload " * 8
+    encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    cipher = encryptor.update(plain) + encryptor.finalize()
+
+    assert _decrypt_aes128(cipher, key, "0x" + "00" * 16) == plain
+
+
+def test_valid_pkcs7_padding_is_stripped():
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    from app.services.enrichment import _decrypt_aes128
+
+    key, iv = b"k" * 16, bytes(16)
+    plain = b"payload" + bytes([9]) * 9  # 7 + 9 = one block, padded
+    encryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    cipher = encryptor.update(plain) + encryptor.finalize()
+
+    assert _decrypt_aes128(cipher, key, None) == b"payload"
+
+
+def test_a_truncated_segment_is_reported_not_silently_trimmed():
+    """Stripping bytes that only look like padding would present a short
+    download as a corrupt stream."""
+    from app.services.enrichment import _decrypt_aes128
+
+    with pytest.raises(ValueError, match="whole number of AES blocks"):
+        _decrypt_aes128(b"x" * 17, b"k" * 16, None)
+
+
+def test_a_malformed_iv_falls_back_to_zero_rather_than_raising():
+    from app.services.enrichment import _decrypt_aes128
+
+    # Not hex, and the wrong length. Neither should crash a fleet run.
+    assert isinstance(_decrypt_aes128(b"\x00" * 16, b"k" * 16, "0xZZ"), bytes)
+
+
+@pytest.mark.asyncio
+async def test_a_timeout_is_retried():
+    """The gateway's latency climbs under load, so one slow response is normal
+    rather than fatal. Giving up on the first loses cameras that would have
+    succeeded a moment later."""
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, content=b"ok")
+
+    e = StreamEnricher(
+        transport=httpx.MockTransport(handler), retry_backoff_s=0, max_retries=2
+    )
+    assert await e._fetch("https://x.test/a", None, None, None) == b"ok"
+    assert calls["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_an_http_status_is_not_retried():
+    """A 404 is a settled fact; re-asking wastes a slot on the bottleneck."""
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(404)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    with pytest.raises(ValueError, match="HTTP 404"):
+        await e._fetch("https://x.test/a", None, None, None)
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_retries_are_bounded():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        raise httpx.ReadTimeout("always")
+
+    e = StreamEnricher(
+        transport=httpx.MockTransport(handler), retry_backoff_s=0, max_retries=2
+    )
+    with pytest.raises(httpx.TimeoutException):
+        await e._fetch("https://x.test/a", None, None, None)
+    assert calls["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_the_decryption_key_is_fetched_once_across_cameras():
+    """The sandbox serves one /enc.key for all thirty cameras. On a gateway with
+    eleven seconds of latency, re-fetching it per camera is the difference
+    between a fleet run finishing and timing out."""
+    from app.services.enrichment import _KEY_CACHE
+
+    _KEY_CACHE.clear()
+    fetched = {"keys": 0}
+
+    def handler(request):
+        if request.url.path.endswith("enc.key"):
+            fetched["keys"] += 1
+            return httpx.Response(200, content=b"k" * 16)
+        return httpx.Response(200, content=b"\x00" * 32)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    manifest = parse_manifest(SENTINEL)
+    for _ in range(3):
+        await e._segment_bytes(
+            "https://gw.test/cam01/index.m3u8", manifest, None, None, None
+        )
+    assert fetched["keys"] == 1
+    _KEY_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_an_unsupported_encryption_scheme_is_named():
+    """SAMPLE-AES encrypts inside the container; a whole-buffer decrypt would
+    return noise that presents as a corrupt stream."""
+    from app.services.enrichment import _KEY_CACHE
+
+    _KEY_CACHE.clear()
+    manifest = parse_manifest('#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="/k"\n#EXTINF:4,\na.ts\n')
+    e = StreamEnricher(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x")),
+        retry_backoff_s=0,
+    )
+    with pytest.raises(ValueError, match="SAMPLE-AES"):
+        await e._segment_bytes("https://gw.test/i.m3u8", manifest, None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_a_wrong_length_key_is_rejected():
+    from app.services.enrichment import _KEY_CACHE
+
+    _KEY_CACHE.clear()
+
+    def handler(request):
+        if request.url.path.endswith("enc.key"):
+            return httpx.Response(200, content=b"short")
+        return httpx.Response(200, content=b"\x00" * 32)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    with pytest.raises(ValueError, match="expected 16"):
+        await e._segment_bytes(
+            "https://gw.test/cam01/index.m3u8", parse_manifest(SENTINEL), None, None, None
+        )
+    _KEY_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_an_unencrypted_segment_is_returned_as_is():
+    from app.services.enrichment import _KEY_CACHE
+
+    _KEY_CACHE.clear()
+    manifest = parse_manifest(LIVE)
+    e = StreamEnricher(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"raw-ts")),
+        retry_backoff_s=0,
+    )
+    body = await e._segment_bytes("https://gw.test/i.m3u8", manifest, None, None, None)
+    assert body == b"raw-ts"

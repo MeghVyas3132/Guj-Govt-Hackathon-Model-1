@@ -18,8 +18,10 @@ import re
 import shutil
 from dataclasses import asdict, dataclass, field
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 # "#EXT-X-KEY:METHOD=AES-128,URI="/enc.key",IV=0x00"
 _ATTR = re.compile(r'([A-Z0-9-]+)=("[^"]*"|[^,]*)')
@@ -41,6 +43,8 @@ class ManifestMetadata:
     total_duration_s: float | None = None
     encryption: str | None = None
     key_uri: str | None = None
+    key_iv: str | None = None
+    first_segment: str | None = None
     is_live: bool | None = None
     variants: list[dict[str, Any]] = field(default_factory=list)
 
@@ -73,6 +77,8 @@ def parse_manifest(text: str) -> ManifestMetadata:
                 meta.variants.append(pending_variant)
                 pending_variant = None
             else:
+                if meta.first_segment is None:
+                    meta.first_segment = line
                 meta.segment_count += 1
             continue
 
@@ -94,6 +100,7 @@ def parse_manifest(text: str) -> ManifestMetadata:
             # METHOD=NONE is the tag explicitly declaring no encryption.
             meta.encryption = None if method == "NONE" else method
             meta.key_uri = attrs.get("URI")
+            meta.key_iv = attrs.get("IV")
         elif line.startswith("#EXT-X-ENDLIST"):
             has_endlist = True
         elif line.startswith("#EXTINF:"):
@@ -173,6 +180,39 @@ class StreamMetadata:
         return out
 
 
+def _decrypt_aes128(payload: bytes, key: bytes, iv_hex: str | None) -> bytes:
+    """Undo HLS AES-128-CBC on one segment.
+
+    When the manifest states no IV, HLS defines it as the segment's media
+    sequence number. We always take the first segment, so that is zero.
+
+    PKCS#7 padding is stripped only when it is actually valid: a segment cut
+    short mid-transfer would otherwise have real bytes trimmed off its end, and
+    the decoder would report a corrupt stream rather than a truncated download.
+    """
+    iv = bytes(16)
+    if iv_hex:
+        cleaned = iv_hex.lower().removeprefix("0x")
+        try:
+            candidate = bytes.fromhex(cleaned)
+        except ValueError:
+            candidate = b""
+        if len(candidate) == 16:
+            iv = candidate
+
+    if len(payload) % 16:
+        raise ValueError("encrypted segment is not a whole number of AES blocks")
+
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+    plain = decryptor.update(payload) + decryptor.finalize()
+
+    if plain:
+        pad = plain[-1]
+        if 1 <= pad <= 16 and plain[-pad:] == bytes([pad]) * pad:
+            plain = plain[:-pad]
+    return plain
+
+
 def _fps(value: str | None) -> float | None:
     """ffprobe reports frame rate as the rational "30/1" -- and as "0/0" for a
     stream where it could not determine one."""
@@ -184,6 +224,15 @@ def _fps(value: str | None) -> float | None:
     except ValueError:
         return None
     return round(numerator / denominator, 3) if denominator else None
+
+
+# The decryption key is very often one file shared by every camera on a gateway
+# -- the Sentinel sandbox serves a single /enc.key for all thirty. Fetching it
+# once instead of per camera removes a full round-trip from all but the first,
+# which on an 11-second-latency gateway is the difference between a fleet run
+# finishing and timing out. Bounded so it cannot grow without limit.
+_KEY_CACHE: dict[str, bytes] = {}
+_KEY_CACHE_MAX = 256
 
 
 class StreamEnricher:
@@ -201,6 +250,8 @@ class StreamEnricher:
         ffprobe_path: str | None = None,
         probe_media: bool = True,
         media_timeout: float = 90.0,
+        max_retries: int = 2,
+        retry_backoff_s: float = 2.0,
     ) -> None:
         self.transport = transport
         self.timeout = timeout
@@ -211,6 +262,8 @@ class StreamEnricher:
         # concurrency that comfortably exceeds any sane HTTP timeout, and the
         # symptom is every camera reporting "ffprobe timed out".
         self.media_timeout = media_timeout
+        self.max_retries = max_retries
+        self.retry_backoff_s = retry_backoff_s
         self.probe_media = probe_media
         self.ffprobe_path = ffprobe_path or shutil.which("ffprobe")
 
@@ -257,6 +310,81 @@ class StreamEnricher:
             await self._probe_media(url, result, secret, cookie_name, header_name)
         return result
 
+    async def _fetch(
+        self,
+        url: str,
+        secret: str | None,
+        cookie_name: str | None,
+        header_name: str | None,
+    ) -> bytes:
+        """Fetch one resource, retrying a timeout with backoff.
+
+        Retries only timeouts and connection errors, never an HTTP status: a 404
+        is a settled fact and re-asking wastes a slot on a gateway that is
+        already the bottleneck. Measured against the sandbox, latency climbs
+        under sustained load -- roughly 11s cold, and worse the longer a run
+        goes on -- so a single slow response is the normal case rather than a
+        failure, and giving up on the first one loses cameras that would have
+        succeeded a moment later.
+        """
+        cookies = {cookie_name: secret} if (secret and cookie_name) else None
+        headers = {header_name: secret} if (secret and header_name) else None
+
+        last: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            if attempt:
+                await asyncio.sleep(self.retry_backoff_s * (2 ** (attempt - 1)))
+            try:
+                async with httpx.AsyncClient(
+                    transport=self.transport,
+                    timeout=self.media_timeout,
+                    cookies=cookies,
+                    headers=headers,
+                    follow_redirects=False,
+                ) as client:
+                    response = await client.get(url)
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as exc:
+                last = exc
+                continue
+            if response.status_code >= 300:
+                raise ValueError(f"HTTP {response.status_code} fetching {url}")
+            return response.content
+
+        raise last if last else ValueError(f"could not fetch {url}")
+
+    async def _segment_bytes(
+        self,
+        manifest_url: str,
+        manifest: ManifestMetadata,
+        secret: str | None,
+        cookie_name: str | None,
+        header_name: str | None,
+    ) -> bytes:
+        """One decrypted media segment, ready for a decoder."""
+        segment_url = urljoin(manifest_url, manifest.first_segment or "")
+        payload = await self._fetch(segment_url, secret, cookie_name, header_name)
+
+        if not manifest.encryption:
+            return payload
+        if manifest.encryption != "AES-128":
+            # SAMPLE-AES encrypts inside the container and cannot be undone with
+            # a whole-buffer decrypt. Say so rather than returning noise that
+            # ffprobe reports as a corrupt stream.
+            raise ValueError(f"cannot decrypt {manifest.encryption} segments")
+        if not manifest.key_uri:
+            raise ValueError("segment is encrypted but the manifest names no key")
+
+        key_url = urljoin(manifest_url, manifest.key_uri)
+        key = _KEY_CACHE.get(key_url)
+        if key is None:
+            key = await self._fetch(key_url, secret, cookie_name, header_name)
+            if len(key) != 16:
+                raise ValueError(f"AES-128 key is {len(key)} bytes, expected 16")
+            if len(_KEY_CACHE) < _KEY_CACHE_MAX:
+                _KEY_CACHE[key_url] = key
+
+        return _decrypt_aes128(payload, key, manifest.key_iv)
+
     async def _probe_media(
         self,
         url: str,
@@ -265,38 +393,54 @@ class StreamEnricher:
         cookie_name: str | None,
         header_name: str | None,
     ) -> None:
-        """Decode enough of the stream to read its real parameters.
+        """Decode one segment to read the stream's real parameters.
 
-        This is the only way to get codec and resolution off a media playlist,
-        which is what the Sentinel gateway serves. It costs one segment.
+        The segment is fetched here rather than by ffmpeg. Handing ffprobe the
+        playlist URL makes it do its own networking, and on a slow gateway that
+        is three serial round-trips it controls and we cannot bound: the whole
+        playlist (216KB and 7,200 entries for a 12-hour archive), then the key,
+        then a segment. Measured against the sandbox that is ~29 seconds for one
+        camera with no other load, which is why a fleet run timed out.
+
+        Fetching the parts ourselves costs two requests instead of three, lets
+        the key be cached across cameras that share one, and leaves ffprobe
+        reading local bytes off a pipe -- where it takes milliseconds and cannot
+        time out on the network at all.
         """
         assert self.ffprobe_path
-        args = [self.ffprobe_path, "-v", "error"]
-        if secret and cookie_name:
-            # ffprobe wants raw HTTP headers, CRLF-terminated.
-            args += ["-headers", f"Cookie: {cookie_name}={secret}\r\n"]
-        elif secret and header_name:
-            args += ["-headers", f"{header_name}: {secret}\r\n"]
-        args += [
-            # Bounded so ffprobe stops as soon as it can describe the stream
-            # rather than buffering for its default 5 seconds of media.
+        manifest = result.manifest
+        if manifest is None or not manifest.first_segment:
+            result.error = "manifest lists no segment to decode"
+            return
+
+        try:
+            payload = await self._segment_bytes(url, manifest, secret, cookie_name, header_name)
+        except httpx.HTTPError as exc:
+            result.error = f"{type(exc).__name__}: {exc}"[:300]
+            return
+        except ValueError as exc:
+            result.error = str(exc)[:300]
+            return
+
+        args = [
+            self.ffprobe_path, "-v", "error",
             "-probesize", "2000000",
             "-analyzeduration", "2000000",
             "-select_streams", "v:0",
             "-show_entries", "stream=codec_name,width,height,avg_frame_rate",
             "-of", "json",
-            "-read_intervals", "%+#1",
-            url,
+            "-i", "pipe:0",
         ]
 
         try:
             process = await asyncio.create_subprocess_exec(
                 *args,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=self.media_timeout
+                process.communicate(payload), timeout=self.media_timeout
             )
         except TimeoutError:
             # communicate() leaves the child running when it times out.

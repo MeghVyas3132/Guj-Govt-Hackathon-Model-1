@@ -68,8 +68,19 @@ class MetadataService:
         return secret, None, None
 
     async def enrich(
-        self, cameras: list[Camera], actor: Principal | None = None
+        self,
+        cameras: list[Camera],
+        actor: Principal | None = None,
+        only_missing: bool = False,
     ) -> list[EnrichmentOutcome]:
+        """Derive metadata for these cameras.
+
+        `only_missing` skips any camera whose endpoint already carries a codec
+        and resolution. That is what lets a scheduled job converge: the gateway
+        is the bottleneck, so a fleet run that re-probes cameras it already
+        described spends its whole budget re-learning the same facts and never
+        reaches the ones it has not seen.
+        """
         if not cameras:
             return []
 
@@ -90,6 +101,24 @@ class MetadataService:
         by_camera: dict[UUID, StreamEndpoint] = {}
         for endpoint in endpoints:
             by_camera.setdefault(endpoint.camera_id, endpoint)
+
+        skipped: list[EnrichmentOutcome] = []
+        if only_missing:
+            pending = []
+            for camera in cameras:
+                endpoint = by_camera.get(camera.id)
+                if endpoint is not None and endpoint.codec and endpoint.resolution:
+                    skipped.append(
+                        EnrichmentOutcome(
+                            camera.id, camera.external_camera_id, False,
+                            {"codec": endpoint.codec, "resolution": endpoint.resolution},
+                        )
+                    )
+                else:
+                    pending.append(camera)
+            cameras = pending
+            if not cameras:
+                return skipped
 
         connectors = (
             await self.session.execute(
@@ -167,7 +196,7 @@ class MetadataService:
                     error=result.error,
                 )
             )
-        return outcomes
+        return skipped + outcomes
 
 
 __all__ = ["EnrichmentOutcome", "MetadataService"]

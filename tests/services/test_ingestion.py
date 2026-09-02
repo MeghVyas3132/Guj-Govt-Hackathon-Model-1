@@ -296,3 +296,176 @@ async def test_a_known_term_records_no_unmapped_metadata(
     camera = (await session.execute(select(Camera))).scalar_one()
     assert camera.camera_type == "ptz"
     assert "unmapped_camera_type" not in camera.metadata_
+
+
+# ---- a re-sync must not discard what we measured ----------------------------
+
+@pytest.mark.asyncio
+async def test_a_resync_preserves_derived_codec_and_resolution(
+    session, seeded_department_obj
+):
+    """The catalogue carries no codec, so a delete-and-reinsert wiped everything
+    enrichment established. On a gateway that answers in ~11 seconds that meant a
+    nightly sync silently discarded hours of work and the registry never
+    converged."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.core.enums import SourceType
+    from app.models.stream_endpoint import StreamEndpoint
+    from app.schemas.ingestion import RawCameraRecord
+    from app.services.ingestion import IngestionService
+
+    record = RawCameraRecord(
+        payload={
+            "external_camera_id": "cam01", "name": "Bridge",
+            "latitude": 23.0, "longitude": 72.5,
+            "_stream_endpoints": [
+                {"protocol": "hls", "url": "https://cdn.test/cam01/i.m3u8",
+                 "reachability": "public_cdn", "is_primary": True},
+            ],
+        },
+        department_id=seeded_department_obj.id,
+        source_type=SourceType.ADAPTER,
+    )
+    service = IngestionService(session)
+    await service.ingest([record], seeded_department_obj, mode="commit")
+    await session.commit()
+
+    endpoint = (await session.execute(select(StreamEndpoint))).scalars().one()
+    endpoint.codec = "h264"
+    endpoint.resolution = "1920x1080"
+    endpoint.last_probe_status = "online"
+    endpoint.verified_at = datetime.now(UTC)
+    await session.commit()
+
+    # The same catalogue entry again, still carrying no codec.
+    await IngestionService(session).ingest(
+        [record], seeded_department_obj, mode="commit"
+    )
+    await session.commit()
+
+    after = (await session.execute(select(StreamEndpoint))).scalars().one()
+    assert after.codec == "h264"
+    assert after.resolution == "1920x1080"
+    assert after.last_probe_status == "online"
+    assert after.verified_at is not None
+
+
+@pytest.mark.asyncio
+async def test_the_source_wins_when_it_does_supply_a_codec(
+    session, seeded_department_obj
+):
+    """Carrying values forward must not stop a source that genuinely knows
+    better from correcting us."""
+    from sqlalchemy import select
+
+    from app.core.enums import SourceType
+    from app.models.stream_endpoint import StreamEndpoint
+    from app.schemas.ingestion import RawCameraRecord
+    from app.services.ingestion import IngestionService
+
+    def record(codec):
+        return RawCameraRecord(
+            payload={
+                "external_camera_id": "cam01", "name": "Bridge",
+                "latitude": 23.0, "longitude": 72.5,
+                "_stream_endpoints": [
+                    {"protocol": "hls", "url": "https://cdn.test/cam01/i.m3u8",
+                     "reachability": "public_cdn", "codec": codec},
+                ],
+            },
+            department_id=seeded_department_obj.id,
+            source_type=SourceType.ADAPTER,
+        )
+
+    await IngestionService(session).ingest([record("h264")], seeded_department_obj, mode="commit")
+    await session.commit()
+    await IngestionService(session).ingest([record("h265")], seeded_department_obj, mode="commit")
+    await session.commit()
+
+    assert (await session.execute(select(StreamEndpoint))).scalars().one().codec == "h265"
+
+
+@pytest.mark.asyncio
+async def test_a_changed_url_starts_over_with_nothing_derived(
+    session, seeded_department_obj
+):
+    """Different URL, different stream. Carrying a codec across would describe
+    the old one."""
+    from sqlalchemy import select
+
+    from app.core.enums import SourceType
+    from app.models.stream_endpoint import StreamEndpoint
+    from app.schemas.ingestion import RawCameraRecord
+    from app.services.ingestion import IngestionService
+
+    def record(url):
+        return RawCameraRecord(
+            payload={
+                "external_camera_id": "cam01", "name": "Bridge",
+                "latitude": 23.0, "longitude": 72.5,
+                "_stream_endpoints": [
+                    {"protocol": "hls", "url": url, "reachability": "public_cdn"},
+                ],
+            },
+            department_id=seeded_department_obj.id,
+            source_type=SourceType.ADAPTER,
+        )
+
+    await IngestionService(session).ingest(
+        [record("https://cdn.test/old/i.m3u8")], seeded_department_obj, mode="commit"
+    )
+    await session.commit()
+    endpoint = (await session.execute(select(StreamEndpoint))).scalars().one()
+    endpoint.codec = "h264"
+    await session.commit()
+
+    await IngestionService(session).ingest(
+        [record("https://cdn.test/new/i.m3u8")], seeded_department_obj, mode="commit"
+    )
+    await session.commit()
+
+    after = (await session.execute(select(StreamEndpoint))).scalars().one()
+    assert after.url.endswith("/new/i.m3u8")
+    assert after.codec is None
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_removed_upstream_still_disappears(
+    session, seeded_department_obj
+):
+    """Preserving derived fields must not resurrect a URL the source dropped."""
+    from sqlalchemy import select
+
+    from app.core.enums import SourceType
+    from app.models.stream_endpoint import StreamEndpoint
+    from app.schemas.ingestion import RawCameraRecord
+    from app.services.ingestion import IngestionService
+
+    def record(endpoints):
+        return RawCameraRecord(
+            payload={
+                "external_camera_id": "cam01", "name": "Bridge",
+                "latitude": 23.0, "longitude": 72.5,
+                "_stream_endpoints": endpoints,
+            },
+            department_id=seeded_department_obj.id,
+            source_type=SourceType.ADAPTER,
+        )
+
+    both = [
+        {"protocol": "hls", "url": "https://cdn.test/a.m3u8", "reachability": "public_cdn"},
+        {"protocol": "rtsp", "url": "rtsp://h/a", "reachability": "direct_ip"},
+    ]
+    await IngestionService(session).ingest([record(both)], seeded_department_obj, mode="commit")
+    await session.commit()
+    assert len((await session.execute(select(StreamEndpoint))).scalars().all()) == 2
+
+    await IngestionService(session).ingest(
+        [record(both[:1])], seeded_department_obj, mode="commit"
+    )
+    await session.commit()
+    rows = (await session.execute(select(StreamEndpoint))).scalars().all()
+    assert [r.protocol for r in rows] == ["hls"]

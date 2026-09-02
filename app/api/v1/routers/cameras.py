@@ -362,6 +362,15 @@ async def enrich_camera(
 async def enrich_cameras(
     filters: CameraFilter = Depends(camera_filter),
     limit: int = Query(50, ge=1, le=500),
+    only_missing: bool = Query(
+        True,
+        description=(
+            "Skip cameras that already have a codec and resolution. On by "
+            "default so a repeated run converges instead of re-probing work "
+            "already done -- the source gateway, not this service, is the "
+            "bottleneck. Set false to refresh everything."
+        ),
+    ),
     principal: Principal = Depends(require_scope("cameras:write")),
     session: AsyncSession = Depends(get_session),
     enricher: StreamEnricher = Depends(get_enricher),
@@ -373,7 +382,7 @@ async def enrich_cameras(
     writable = [c for c in rows if principal.may_write_department(c.department_id)]
 
     outcomes = await MetadataService(session, enricher).enrich(
-        list(writable), actor=principal
+        list(writable), actor=principal, only_missing=only_missing
     )
     await session.commit()
     return _enrichment_report(outcomes)

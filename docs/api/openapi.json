@@ -4578,6 +4578,18 @@
             }
           },
           {
+            "description": "Skip cameras that already have a codec and resolution. On by default so a repeated run converges instead of re-probing work already done -- the source gateway, not this service, is the bottleneck. Set false to refresh everything.",
+            "in": "query",
+            "name": "only_missing",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Skip cameras that already have a codec and resolution. On by default so a repeated run converges instead of re-probing work already done -- the source gateway, not this service, is the bottleneck. Set false to refresh everything.",
+              "title": "Only Missing",
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Free text over uid, name, address.",
             "in": "query",
             "name": "q",

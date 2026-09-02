@@ -208,27 +208,59 @@ class IngestionService:
             await self.session.commit()
         return report
 
+    # Fields the source catalogue does not supply and we established ourselves,
+    # by decoding the stream or by probing it. A re-sync must not discard them.
+    _DERIVED_ENDPOINT_FIELDS = ("codec", "resolution", "verified_at", "last_probe_status")
+
     async def _sync_endpoints(
         self, camera: Camera, endpoints: list[dict[str, Any]]
     ) -> None:
-        """Replace rather than merge.
+        """Replace the source's fields, carry our own forward.
 
-        The source catalogue is authoritative about how a camera can be reached, so a
-        URL that disappeared upstream has to disappear here too. Merging would leave
-        the registry handing Models 2-4 an endpoint that no longer exists, which is
-        worse than handing them none.
+        The catalogue is authoritative about how a camera can be reached, so a URL
+        that disappeared upstream has to disappear here too -- handing Models 2-4
+        an endpoint that no longer exists is worse than handing them none.
+
+        But it is authoritative only about what it actually sends. Codec,
+        resolution and probe results are things this registry measured, usually
+        because the catalogue carried nothing; a plain delete-and-reinsert wiped
+        them on every sync. On a gateway that answers in ~11 seconds, that meant a
+        nightly sync silently discarded hours of enrichment and the registry could
+        never converge. Endpoints are matched on (protocol, url), so a genuinely
+        changed URL correctly starts over with nothing derived.
         """
+        existing = (
+            (
+                await self.session.execute(
+                    select(StreamEndpoint).where(StreamEndpoint.camera_id == camera.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        derived = {
+            (row.protocol, row.url): {
+                field: getattr(row, field) for field in self._DERIVED_ENDPOINT_FIELDS
+            }
+            for row in existing
+        }
+
         await self.session.execute(
             delete(StreamEndpoint).where(StreamEndpoint.camera_id == camera.id)
         )
         for endpoint in endpoints:
+            carried = derived.get((endpoint["protocol"], endpoint["url"]), {})
             self.session.add(
                 StreamEndpoint(
                     camera_id=camera.id,
                     protocol=endpoint["protocol"],
                     url=endpoint["url"],
-                    codec=endpoint.get("codec"),
-                    resolution=endpoint.get("resolution"),
+                    # The source wins where it speaks; what we measured stands
+                    # where it is silent.
+                    codec=endpoint.get("codec") or carried.get("codec"),
+                    resolution=endpoint.get("resolution") or carried.get("resolution"),
+                    verified_at=carried.get("verified_at"),
+                    last_probe_status=carried.get("last_probe_status"),
                     is_primary=endpoint.get("is_primary", False),
                     reachability=endpoint.get("reachability", "direct_ip"),
                     requires_auth=endpoint.get("requires_auth", False),

@@ -215,3 +215,66 @@ async def test_enrichment_requires_the_write_scope(session, camera_with_stream):
     async with await client_for(session, headers_for(viewer)) as client:
         response = await client.post(f"/api/v1/cameras/{camera_with_stream.id}/enrich")
     assert response.status_code == 403
+
+
+# ---- convergence: a scheduled run must not re-do work ------------------------
+
+@pytest.mark.asyncio
+async def test_bulk_enrichment_skips_cameras_already_described(
+    api_client, session, camera_with_stream
+):
+    """The gateway is the bottleneck, not this service. A fleet run that
+    re-probes cameras it already described spends its budget re-learning the
+    same facts and never reaches the ones it has not seen."""
+    use_enricher(lambda r: httpx.Response(200, text=MASTER))
+
+    first = (await api_client.post("/api/v1/cameras/enrich?limit=50")).json()
+    assert first["updated"] == 1
+
+    calls = {"n": 0}
+
+    def counting(request):
+        calls["n"] += 1
+        return httpx.Response(200, text=MASTER)
+
+    use_enricher(counting)
+    second = (await api_client.post("/api/v1/cameras/enrich?limit=50")).json()
+
+    # Reported, but never fetched again.
+    assert second["checked"] == 1
+    assert second["updated"] == 0
+    assert calls["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_only_missing_can_be_turned_off_to_refresh(
+    api_client, session, camera_with_stream
+):
+    """A camera that was re-cabled needs its metadata re-read."""
+    use_enricher(lambda r: httpx.Response(200, text=MASTER))
+    await api_client.post("/api/v1/cameras/enrich?limit=50")
+
+    calls = {"n": 0}
+
+    def counting(request):
+        calls["n"] += 1
+        return httpx.Response(200, text=MASTER)
+
+    use_enricher(counting)
+    await api_client.post("/api/v1/cameras/enrich?limit=50&only_missing=false")
+    assert calls["n"] > 0
+
+
+@pytest.mark.asyncio
+async def test_a_camera_that_failed_before_is_retried_next_run(
+    api_client, session, camera_with_stream
+):
+    """The convergence property: what failed stays pending, so repeated runs
+    close the gap rather than plateauing."""
+    use_enricher(lambda r: httpx.Response(503))
+    first = (await api_client.post("/api/v1/cameras/enrich?limit=50")).json()
+    assert first["failed"] == 1
+
+    use_enricher(lambda r: httpx.Response(200, text=MASTER))
+    second = (await api_client.post("/api/v1/cameras/enrich?limit=50")).json()
+    assert second["updated"] == 1

@@ -151,6 +151,12 @@ export default function CameraDetailPage() {
         </div>
         <Button
           busy={enriching}
+          disabled={!streams.some((s) => s.protocol === "hls")}
+          title={
+            streams.some((s) => s.protocol === "hls")
+              ? undefined
+              : "This camera has no HLS endpoint to read metadata from"
+          }
           onClick={async () => {
             setEnriching(true);
             setEnrichResult(null);
@@ -200,7 +206,11 @@ export default function CameraDetailPage() {
         <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
           Live preview
         </h2>
-        <CameraPlayer cameraId={String(id)} label={camera.name ?? camera.camera_uid} />
+        <CameraPlayer
+          cameraId={String(id)}
+          label={camera.name ?? camera.camera_uid}
+          playable={streams.some((s) => s.protocol === "hls")}
+        />
       </section>
 
       {stream && (
