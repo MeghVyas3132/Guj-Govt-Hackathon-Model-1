@@ -25,7 +25,11 @@ python -m seeds.departments       # 6 departments, each with a different schema
 python -m seeds.place_aliases     # place-name → district lookups
 python -m seeds.users             # 4 demo accounts, one per role
 python -m seeds.connectors        # the Sentinel sandbox, as a config row
-python -m seeds.synthetic 80000   # 80,000 cameras inside real district polygons
+python -m seeds.connectors    # then sync it: the 30 sandbox cameras, live
+
+# Optional — 80,000 synthetic cameras inside real district polygons, for
+# demonstrating map and coverage performance at state scale.
+# python -m seeds.synthetic 80000
 
 uvicorn app.main:app --port 8000
 cd web && npm install && npm run dev
@@ -77,7 +81,7 @@ differently.
 | [Gap analysis](docs/api/reports.md) | Coverage and ageing infrastructure |
 | [Event subscriptions](docs/api/webhooks.md) | Signed alerts, and how to verify them |
 | [OpenAPI spec](docs/api/openapi.json) | Generated, and drift-tested against the code |
-| [Sample dataset](docs/sample-camera-dataset.csv) | 1,030 onboarded cameras, 25 columns |
+| [Sample dataset](docs/sample-camera-dataset.csv) | The 30 sandbox cameras as onboarded, 24 columns |
 | [Sample gap-analysis report](docs/sample-gap-analysis-report.html) | Generated from real data |
 
 ---

@@ -348,9 +348,9 @@ a coverage tile route that required no authentication at all.
 
 | | |
 |---|---|
-| Catalogue onboarded | 30 entries → 29 cameras across 9 districts |
+| Catalogue onboarded | 30 of 30 entries, across 10 districts |
 | Re-sync | creates nothing; idempotent |
-| Metadata derived | h264, 1920×1080 and 1280×720, 25 and 30fps |
+| Metadata derived | 30 of 30 cameras: h264, five distinct resolutions from 854×480 to 1920×1080, frame rates 10–30fps |
 | Streams | AES-128 encrypted, `PLAYLIST-TYPE:VOD` (recorded loops, not live) |
 | Step 4 test case | 50 heterogeneous cameras onboarded, re-run writes nothing |
 
