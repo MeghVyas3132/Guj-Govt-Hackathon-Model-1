@@ -35,6 +35,10 @@ from app.services.export import cameras_to_csv
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 
+# How many cameras are enriched between commits. Small enough that an
+# interrupted fleet run loses seconds of work rather than minutes.
+ENRICH_CHUNK = 5
+
 
 def _enrichment_report(outcomes: list[EnrichmentOutcome]) -> EnrichmentReport:
     return EnrichmentReport(
@@ -381,10 +385,19 @@ async def enrich_cameras(
     # set gets what they may write, not a 403 for the whole request.
     writable = [c for c in rows if principal.may_write_department(c.department_id)]
 
-    outcomes = await MetadataService(session, enricher).enrich(
-        list(writable), actor=principal, only_missing=only_missing
-    )
-    await session.commit()
+    # Committed in chunks rather than once at the end. Against a gateway that
+    # answers in ~11 seconds a fleet pass runs for minutes, and a single
+    # trailing commit means an interrupted run -- a restart, a timeout, a closed
+    # connection -- discards everything it had already measured. Chunking makes
+    # progress durable, which is what lets repeated runs actually converge.
+    service = MetadataService(session, enricher)
+    outcomes: list[EnrichmentOutcome] = []
+    for start in range(0, len(writable), ENRICH_CHUNK):
+        chunk = writable[start : start + ENRICH_CHUNK]
+        outcomes.extend(
+            await service.enrich(chunk, actor=principal, only_missing=only_missing)
+        )
+        await session.commit()
     return _enrichment_report(outcomes)
 
 

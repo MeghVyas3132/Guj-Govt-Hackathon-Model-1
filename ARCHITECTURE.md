@@ -220,13 +220,23 @@ graph LR
     WRITE --> DONE["never re-probed"]
 ```
 
-Three properties, and all three matter:
+Four properties, and all four matter:
 
 1. **Convergent.** `only_missing=true` (default) skips cameras already described,
    so repeated runs close the gap instead of re-learning the same facts.
 2. **Retries timeouts, not statuses.** A slow response is normal here; a 404 is a
    settled fact and re-asking wastes the bottleneck.
 3. **Never destructive.** A failed probe leaves the previous values alone.
+4. **Durable partway through.** Commits happen every `ENRICH_CHUNK` cameras, not
+   once at the end. A pass runs for minutes; a single trailing commit meant an
+   interrupted run — a restart, a timeout, a dropped connection — threw away
+   everything it had already measured, so the registry never converged no matter
+   how many times it was run.
+
+Two budgets, deliberately different: `media_timeout` (45s) bounds one *network*
+fetch, `decode_timeout` (15s) bounds ffprobe reading bytes already in memory.
+Sharing one 90s budget made the worst case 276s per camera and a fleet pass could
+not finish.
 
 **Consequence for operations:** full enrichment of a fleet behind a slow gateway
 is a *scheduled job that converges over several passes*, not a request anybody

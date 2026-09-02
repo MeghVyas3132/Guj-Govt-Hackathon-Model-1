@@ -249,19 +249,27 @@ class StreamEnricher:
         timeout: float = 15.0,
         ffprobe_path: str | None = None,
         probe_media: bool = True,
-        media_timeout: float = 90.0,
+        media_timeout: float = 45.0,
+        decode_timeout: float = 15.0,
         max_retries: int = 2,
         retry_backoff_s: float = 2.0,
     ) -> None:
         self.transport = transport
         self.timeout = timeout
-        # Decoding media is not the same operation as fetching a manifest and
-        # cannot share its budget. ffprobe has to parse the playlist -- 7,200
-        # entries for a 12-hour archive -- then fetch the decryption key and one
-        # encrypted segment before it can report a single frame. Under
-        # concurrency that comfortably exceeds any sane HTTP timeout, and the
-        # symptom is every camera reporting "ffprobe timed out".
+        # Two different budgets, because they are two different operations.
+        #
+        # `media_timeout` bounds one *network* fetch of a segment or a key. The
+        # gateway answers in ~11s cold and worse under load, so this has to be
+        # generous -- but not so generous that a stuck request eats the retry
+        # budget. Three attempts at 45s is a bounded 141s worst case; at 90s it
+        # was 276s, and a fleet pass could not finish.
+        #
+        # `decode_timeout` bounds ffprobe, which now reads bytes already in
+        # memory off a pipe. That takes milliseconds. Waiting 90s for it is pure
+        # waste, and if it ever does hang, something is wrong that more waiting
+        # will not fix.
         self.media_timeout = media_timeout
+        self.decode_timeout = decode_timeout
         self.max_retries = max_retries
         self.retry_backoff_s = retry_backoff_s
         self.probe_media = probe_media
@@ -440,13 +448,13 @@ class StreamEnricher:
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(payload), timeout=self.media_timeout
+                process.communicate(payload), timeout=self.decode_timeout
             )
         except TimeoutError:
             # communicate() leaves the child running when it times out.
             process.kill()
             await process.wait()
-            result.error = f"ffprobe timed out after {self.media_timeout:.0f}s"
+            result.error = f"ffprobe timed out after {self.decode_timeout:.0f}s"
             return
         except OSError as exc:
             result.error = f"ffprobe unavailable: {exc}"

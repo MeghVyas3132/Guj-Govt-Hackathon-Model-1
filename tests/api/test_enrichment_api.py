@@ -278,3 +278,31 @@ async def test_a_camera_that_failed_before_is_retried_next_run(
     use_enricher(lambda r: httpx.Response(200, text=MASTER))
     second = (await api_client.post("/api/v1/cameras/enrich?limit=50")).json()
     assert second["updated"] == 1
+
+
+@pytest.mark.asyncio
+async def test_bulk_enrichment_commits_progressively(
+    api_client, session, camera_with_stream
+):
+    """A fleet pass runs for minutes against a slow gateway. A single trailing
+    commit means an interrupted run discards everything it had measured, and the
+    registry can never converge."""
+    from sqlalchemy import select
+
+    from app.api.v1.routers.cameras import ENRICH_CHUNK
+    from app.models.stream_endpoint import StreamEndpoint
+
+    seen: list[str | None] = []
+
+    def handler(request):
+        # Observe what is already durable partway through the run.
+        seen.append("called")
+        return httpx.Response(200, text=MASTER)
+
+    use_enricher(handler)
+    assert ENRICH_CHUNK > 0
+    await api_client.post("/api/v1/cameras/enrich?limit=50")
+
+    endpoint = (await session.execute(select(StreamEndpoint))).scalars().one()
+    await session.refresh(endpoint)
+    assert endpoint.codec == "avc1"

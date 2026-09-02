@@ -455,3 +455,18 @@ async def test_an_unencrypted_segment_is_returned_as_is():
     )
     body = await e._segment_bytes("https://gw.test/i.m3u8", manifest, None, None, None)
     assert body == b"raw-ts"
+
+
+def test_the_network_and_decode_budgets_are_separate():
+    """ffprobe reads bytes already in memory; giving it the network's budget
+    means a hung decode blocks a fleet pass for no reason."""
+    e = StreamEnricher(ffprobe_path=None)
+    assert e.decode_timeout < e.media_timeout
+
+
+def test_the_retry_budget_is_bounded_in_wall_clock():
+    """Three attempts at the default must stay well inside a pass, or a single
+    stuck camera stalls the whole run."""
+    e = StreamEnricher(ffprobe_path=None)
+    worst_case = e.media_timeout * (e.max_retries + 1) + e.retry_backoff_s * 3
+    assert worst_case < 180
