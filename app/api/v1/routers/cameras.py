@@ -6,7 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.deps import get_enricher, request_context, require_scope
+from app.core.enums import StreamProtocol
+from app.models.source_connector import SourceConnector
+from app.services.credentials import CredentialResolver
 from app.services.enrichment import StreamEnricher
+from app.services.stream_proxy import (
+    MANIFEST_TYPES,
+    StreamProxy,
+    UpstreamError,
+    rewrite_manifest,
+)
 from app.services.metadata import EnrichmentOutcome, MetadataService
 from app.core.geo import to_point
 from app.models.camera import Camera
@@ -368,3 +377,151 @@ async def enrich_cameras(
     )
     await session.commit()
     return _enrichment_report(outcomes)
+
+
+async def _primary_hls(session: AsyncSession, camera: Camera) -> StreamEndpoint:
+    endpoint = (
+        await session.execute(
+            select(StreamEndpoint)
+            .where(
+                StreamEndpoint.camera_id == camera.id,
+                StreamEndpoint.protocol == StreamProtocol.HLS.value,
+            )
+            .order_by(StreamEndpoint.is_primary.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if endpoint is None:
+        raise HTTPException(
+            status_code=404, detail="This camera has no HLS endpoint to preview"
+        )
+    return endpoint
+
+
+async def _stream_auth(
+    session: AsyncSession, camera: Camera, endpoint: StreamEndpoint
+) -> tuple[str | None, str | None, str | None]:
+    """(secret, cookie_name, header_name) for this camera's stream host."""
+    if not (endpoint.requires_auth and endpoint.credential_ref):
+        return None, None, None
+    secret = await CredentialResolver(session).resolve(endpoint.credential_ref)
+    connector = (
+        await session.execute(
+            select(SourceConnector).where(
+                SourceConnector.department_id == camera.department_id
+            )
+        )
+    ).scalars().first()
+    auth = (connector.config or {}).get("auth", {}) if connector else {}
+    if auth.get("type") == "cookie":
+        return secret, auth.get("name"), None
+    if auth.get("type") == "header":
+        return secret, None, auth.get("name")
+    return secret, None, None
+
+
+@router.get(
+    "/{camera_id}/preview.m3u8",
+    summary="Playable HLS manifest for this camera",
+    description=(
+        "The camera's own manifest, re-served from this origin with every URL "
+        "inside it pointed back here. This exists because the gateway sends no "
+        "CORS headers and its session cookie is HttpOnly and SameSite=Lax, so a "
+        "browser can neither fetch nor authenticate the stream directly. Preview "
+        "only: video does not otherwise pass through the registry."
+    ),
+    response_class=Response,
+)
+async def camera_preview(
+    camera_id: UUID,
+    principal: Principal = Depends(require_scope("cameras:read")),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    camera = await session.get(Camera, camera_id)
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    endpoint = await _primary_hls(session, camera)
+    secret, cookie, header = await _stream_auth(session, camera, endpoint)
+
+    try:
+        body, _ = await StreamProxy().fetch(
+            endpoint.url,
+            allowed_origin=endpoint.url,
+            secret=secret,
+            cookie_name=cookie,
+            header_name=header,
+        )
+    except UpstreamError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+    rewritten = rewrite_manifest(
+        body.decode("utf-8", errors="replace"),
+        endpoint.url,
+        f"/api/v1/cameras/{camera_id}/preview-segment",
+    )
+    return Response(
+        content=rewritten,
+        media_type="application/vnd.apple.mpegurl",
+        # Never cached: a manifest carries a media sequence, and a stale one is
+        # indistinguishable from a frozen camera.
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get(
+    "/{camera_id}/preview-segment",
+    summary="One media segment or decryption key, relayed",
+    description=(
+        "Called only by the player, using URLs written into the manifest above. "
+        "`target` must be on the camera's own stream host."
+    ),
+    response_class=Response,
+)
+async def camera_preview_segment(
+    camera_id: UUID,
+    target: str = Query(..., description="Absolute URL taken from the manifest"),
+    principal: Principal = Depends(require_scope("cameras:read")),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    camera = await session.get(Camera, camera_id)
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    endpoint = await _primary_hls(session, camera)
+    secret, cookie, header = await _stream_auth(session, camera, endpoint)
+
+    try:
+        body, content_type = await StreamProxy().fetch(
+            target,
+            # Confined to the host this camera's own endpoint points at, so a
+            # crafted `target` cannot use the registry's network position to
+            # reach somewhere it should not.
+            allowed_origin=endpoint.url,
+            secret=secret,
+            cookie_name=cookie,
+            header_name=header,
+        )
+    except UpstreamError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+    # A variant playlist is itself a manifest and needs the same rewriting, or
+    # its own segments would be requested cross-origin and fail.
+    if any(t in content_type for t in MANIFEST_TYPES) or body.startswith(b"#EXTM3U"):
+        rewritten = rewrite_manifest(
+            body.decode("utf-8", errors="replace"),
+            target,
+            f"/api/v1/cameras/{camera_id}/preview-segment",
+        )
+        return Response(
+            content=rewritten,
+            media_type="application/vnd.apple.mpegurl",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    return Response(
+        content=body,
+        media_type=content_type,
+        # Segments are immutable once published; the key is small and constant.
+        headers={"Cache-Control": "private, max-age=300"},
+    )

@@ -59,15 +59,17 @@ differently.
 | Ageing infrastructure and AMC expiry | `/ageing` |
 | Metadata derived from the stream itself | `POST /api/v1/cameras/{id}/enrich` |
 | Signed outbound alerts on camera state | `/webhooks` |
+| Live camera preview, relayed and authenticated | `/cameras/{id}` |
 | CSV export and per-camera change history | `/cameras` |
 | Vocabulary, aliases, keys, audit trail | `/admin` |
 
-**583 tests · 47 API paths · 17 tables · 10 migrations · 13 pages.**
+**622 tests · 49 API paths · 17 tables · 10 migrations · 13 pages.**
 
 ### Documentation
 
 | | |
 |---|---|
+| [What every screen does](UI-GUIDE.md) | The portal, page by page |
 | [High-Level Design](docs/HLD.md) | Architecture, data flow, integration methodology |
 | [Onboarding a department](docs/api/onboarding-guide.md) | The four ways data gets in |
 | [Where metadata comes from](docs/api/metadata.md) | Deriving what a source omits |

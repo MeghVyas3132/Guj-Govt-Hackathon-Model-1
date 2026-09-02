@@ -338,7 +338,7 @@ internet.
 
 ## 11. Verification
 
-**583 automated tests**, including 262 on the connector and onboarding paths
+**622 automated tests**, including 262 on the connector and onboarding paths
 alone. These are not smoke tests: they found fourteen real defects, among them
 government-Excel encodings (`cp1252`, UTF-16) that crashed imports before a row
 was read, semicolon-delimited files that parsed as a single unusable column, and

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { CameraPlayer } from "@/components/CameraPlayer";
 import { Button, Mono, Notice } from "@/components/ui";
 import { apiFetch, apiJson } from "@/lib/session";
 
@@ -194,6 +195,13 @@ export default function CameraDetailPage() {
           </Notice>
         </div>
       )}
+
+      <section className="mb-8">
+        <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
+          Live preview
+        </h2>
+        <CameraPlayer cameraId={String(id)} label={camera.name ?? camera.camera_uid} />
+      </section>
 
       {stream && (
         <section className="mb-8">

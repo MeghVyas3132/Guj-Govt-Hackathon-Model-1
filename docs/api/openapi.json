@@ -5221,6 +5221,155 @@
         ]
       }
     },
+    "/api/v1/cameras/{camera_id}/preview-segment": {
+      "get": {
+        "description": "Called only by the player, using URLs written into the manifest above. `target` must be on the camera's own stream host.",
+        "operationId": "camera_preview_segment_api_v1_cameras__camera_id__preview_segment_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Absolute URL taken from the manifest",
+            "in": "query",
+            "name": "target",
+            "required": true,
+            "schema": {
+              "description": "Absolute URL taken from the manifest",
+              "title": "Target",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One media segment or decryption key, relayed",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
+    "/api/v1/cameras/{camera_id}/preview.m3u8": {
+      "get": {
+        "description": "The camera's own manifest, re-served from this origin with every URL inside it pointed back here. This exists because the gateway sends no CORS headers and its session cookie is HttpOnly and SameSite=Lax, so a browser can neither fetch nor authenticate the stream directly. Preview only: video does not otherwise pass through the registry.",
+        "operationId": "camera_preview_api_v1_cameras__camera_id__preview_m3u8_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Camera Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Playable HLS manifest for this camera",
+        "tags": [
+          "cameras"
+        ]
+      }
+    },
     "/api/v1/cameras/{camera_id}/streams": {
       "get": {
         "description": "Entry point for Models 2-4. Prefer the endpoint whose reachability matches your network: public_cdn works anywhere, direct_ip needs gateway ports open.",
