@@ -36,8 +36,8 @@ function Chips({
             onClick={() => onToggle(value)}
             className={`rounded px-2 py-1 text-xs transition-colors ${
               active
-                ? "bg-slate-800 text-white"
-                : "bg-sunken text-ink hover:bg-slate-200"
+                ? "bg-[var(--brand)] text-white"
+                : "bg-sunken text-ink hover:bg-[var(--border)]"
             }`}
           >
             {value}

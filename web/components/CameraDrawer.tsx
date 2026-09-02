@@ -26,8 +26,8 @@ export type SelectedCamera = {
 };
 
 const REACHABILITY_STYLES: Record<string, string> = {
-  public_cdn: "bg-emerald-100 text-emerald-800",
-  direct_ip: "bg-amber-100 text-amber-800",
+  public_cdn: "bg-[var(--state-online-bg)] text-[var(--state-online-ink)]",
+  direct_ip: "bg-[var(--state-maintenance-bg)] text-[var(--state-maintenance-ink)]",
 };
 
 export function CameraDrawer({
@@ -123,7 +123,7 @@ export function CameraDrawer({
                 </span>
               )}
               {s.requires_auth && (
-                <span className="mt-1 block text-amber-600">requires credentials</span>
+                <span className="mt-1 block text-[var(--state-maintenance-ink)]">requires credentials</span>
               )}
             </li>
           ))}

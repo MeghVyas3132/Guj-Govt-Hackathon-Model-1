@@ -4,7 +4,24 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { apiJson } from "@/lib/session";
+import { Button, Mono, Notice } from "@/components/ui";
+import { apiFetch, apiJson } from "@/lib/session";
+
+/** What `enrich` writes back onto the camera. Every field is optional: whatever
+ *  the stream did not state stays absent rather than becoming a default. */
+type StreamMetadata = {
+  codec?: string;
+  resolution?: string;
+  frame_rate?: number;
+  manifest?: {
+    encryption?: string;
+    playlist_type?: string;
+    is_live?: boolean;
+    segment_count?: number;
+    total_duration_s?: number;
+    target_duration?: number;
+  };
+};
 
 type Camera = {
   id: string;
@@ -71,6 +88,8 @@ export default function CameraDetailPage() {
   const [history, setHistory] = useState<Observation[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -99,9 +118,9 @@ export default function CameraDetailPage() {
   if (error) {
     return (
       <main className="mx-auto max-w-[56rem] p-6">
-        <p className="rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] [background:var(--state-offline-bg)] [color:var(--state-offline-ink)]">
+        <Notice tone="error" title="Could not load this camera">
           {error}
-        </p>
+        </Notice>
       </main>
     );
   }
@@ -112,6 +131,7 @@ export default function CameraDetailPage() {
   const unmapped = Object.entries(camera.metadata ?? {}).filter(([k]) =>
     k.startsWith("unmapped_"),
   );
+  const stream = camera.metadata?.stream as StreamMetadata | undefined;
 
   return (
     <main className="mx-auto max-w-[56rem] p-6">
@@ -119,35 +139,125 @@ export default function CameraDetailPage() {
         ← All cameras
       </Link>
 
-      <h1 className="mt-3 font-mono text-[length:var(--text-xl)] font-semibold text-ink">{camera.camera_uid}</h1>
-      <p className="mb-6 text-[length:var(--text-sm)] text-ink-muted">
-        {camera.name ?? "Unnamed"} · {camera.camera_type} · {camera.current_status}
-      </p>
+      <div className="mt-3 mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-mono text-[length:var(--text-xl)] font-semibold text-ink">
+            {camera.camera_uid}
+          </h1>
+          <p className="text-[length:var(--text-sm)] text-ink-muted">
+            {camera.name ?? "Unnamed"} · {camera.camera_type} · {camera.current_status}
+          </p>
+        </div>
+        <Button
+          busy={enriching}
+          onClick={async () => {
+            setEnriching(true);
+            setEnrichResult(null);
+            try {
+              const response = await apiFetch(`/api/v1/cameras/${id}/enrich`, {
+                method: "POST",
+              });
+              const body = await response.json();
+              const result = body.results?.[0];
+              setEnrichResult(
+                result?.error
+                  ? `Could not read the stream: ${result.error}`
+                  : body.updated
+                    ? "Updated from the stream."
+                    : "Already matches the stream.",
+              );
+              // Re-read rather than patching state by hand: the server decides
+              // what actually changed, and guessing here is how the two drift.
+              const fresh = await apiFetch(`/api/v1/cameras/${id}`);
+              if (fresh.ok) setCamera(await fresh.json());
+              const s = await apiFetch(`/api/v1/cameras/${id}/streams`);
+              if (s.ok) setStreams(await s.json());
+            } catch (cause) {
+              setEnrichResult(
+                cause instanceof Error ? cause.message : "Enrichment failed",
+              );
+            } finally {
+              setEnriching(false);
+            }
+          }}
+        >
+          Read metadata from stream
+        </Button>
+      </div>
+
+      {enrichResult && (
+        <div className="mb-6">
+          <Notice
+            tone={enrichResult.startsWith("Could not") ? "warn" : "success"}
+          >
+            {enrichResult}
+          </Notice>
+        </div>
+      )}
+
+      {stream && (
+        <section className="mb-8">
+          <h2 className="mb-2 text-[length:var(--text-lg)] font-semibold text-ink">
+            Derived from the stream
+          </h2>
+          <p className="mb-3 text-[length:var(--text-xs)] text-ink-muted">
+            Read from the camera&rsquo;s own manifest and media, not from the source
+            catalogue — which for most sources carries an identifier and nothing else.
+          </p>
+          <dl className="grid gap-x-8 gap-y-2 rounded-[6px] border border-line bg-surface p-4 text-sm sm:grid-cols-2">
+            <Row label="Codec" value={stream.codec ?? "—"} mono />
+            <Row label="Resolution" value={stream.resolution ?? "—"} mono />
+            <Row
+              label="Frame rate"
+              value={stream.frame_rate ? `${stream.frame_rate} fps` : "—"}
+              mono
+            />
+            <Row
+              label="Feed"
+              value={
+                stream.manifest?.is_live === false
+                  ? "recorded loop (not live)"
+                  : stream.manifest?.is_live === true
+                    ? "live"
+                    : "—"
+              }
+            />
+            <Row label="Encryption" value={stream.manifest?.encryption ?? "none"} />
+            <Row
+              label="Archive"
+              value={
+                stream.manifest?.total_duration_s
+                  ? `${Math.round(stream.manifest.total_duration_s / 3600)} hours in ${stream.manifest.segment_count?.toLocaleString()} segments`
+                  : "—"
+              }
+            />
+          </dl>
+        </section>
+      )}
 
       {geocoded && (
-        <p className="mb-6 rounded-[6px] border p-3 text-[length:var(--text-sm)] [border-color:color-mix(in_oklch,var(--state-maintenance-ink)_30%,transparent)] [background:var(--state-maintenance-bg)] [color:var(--state-maintenance-ink)]">
-          <strong>Position is district-level, not surveyed.</strong> It was derived
-          from{" "}
-          <span className="font-mono">
-            {String(camera.metadata.geocode_matched_on)}
-          </span>{" "}
-          in the source data and resolves to a representative point for{" "}
-          {String(camera.metadata.geocode_district)} district. Supplying real
-          coordinates updates it in place.
-        </p>
+        <div className="mb-6">
+          <Notice tone="warn" title="Position is district-level, not surveyed">
+            It was derived from{" "}
+            <Mono>{String(camera.metadata.geocode_matched_on)}</Mono> in the source
+            data and resolves to a representative point for{" "}
+            {String(camera.metadata.geocode_district)} district. Supplying real
+            coordinates updates it in place.
+          </Notice>
+        </div>
       )}
 
       {unmapped.length > 0 && (
-        <p className="mb-6 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          <strong>Values this registry did not recognise were kept.</strong>{" "}
-          {unmapped.map(([k, v]) => (
-            <span key={k} className="mr-3">
-              <span className="font-mono text-xs">{k.replace("unmapped_", "")}</span> ={" "}
-              <span className="font-mono text-xs">{String(v)}</span>
-            </span>
-          ))}
-          Add it as a vocabulary term to classify it.
-        </p>
+        <div className="mb-6">
+          <Notice title="Values this registry did not recognise were kept">
+            {unmapped.map(([k, v]) => (
+              <span key={k} className="mr-3">
+                <Mono>{k.replace("unmapped_", "")}</Mono> = <Mono>{String(v)}</Mono>
+              </span>
+            ))}
+            <span className="ml-1">Add it as a vocabulary term to classify it.</span>
+          </Notice>
+        </div>
       )}
 
       <section className="mb-8">
@@ -198,7 +308,7 @@ export default function CameraDetailPage() {
                     {stream.protocol}
                   </span>
                   {stream.is_primary && (
-                    <span className="rounded bg-slate-900 px-1.5 py-0.5 text-xs text-white">
+                    <span className="rounded-[3px] bg-[var(--brand)] px-1.5 py-0.5 text-[length:var(--text-2xs)] text-white">
                       primary
                     </span>
                   )}
@@ -215,7 +325,7 @@ export default function CameraDetailPage() {
                 <p className="mt-1 text-[length:var(--text-xs)] text-ink-faint">
                   {[stream.codec, stream.resolution].filter(Boolean).join(" · ") || "—"}
                   {stream.requires_auth && (
-                    <span className="ml-2 text-amber-600">requires credentials</span>
+                    <span className="ml-2 text-[var(--state-maintenance-ink)]">requires credentials</span>
                   )}
                 </p>
               </li>
@@ -298,7 +408,7 @@ function Row({
   mono?: boolean;
 }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-slate-100 pb-1 last:border-0">
+    <div className="flex justify-between gap-4 border-b border-line pb-1 last:border-0">
       <dt className="text-xs uppercase text-ink-faint">{label}</dt>
       <dd className={mono ? "font-mono text-xs" : "text-ink"}>{value}</dd>
     </div>
@@ -321,8 +431,8 @@ function Diff({
       {changed.map((key) => (
         <li key={key}>
           <span className="font-mono text-ink-muted">{key}</span>{" "}
-          <span className="text-red-600 line-through">{String(before[key])}</span>{" "}
-          <span className="text-green-700">{String(after[key])}</span>
+          <span className="text-[var(--state-offline-ink)] line-through">{String(before[key])}</span>{" "}
+          <span className="text-[var(--state-online-ink)]">{String(after[key])}</span>
         </li>
       ))}
     </ul>

@@ -137,7 +137,7 @@ export function CoverageControls({
 
       {estimate && (
         <p
-          className={`mt-3 text-xs ${overBudget ? "text-red-600" : "text-ink-muted"}`}
+          className={`mt-3 text-xs ${overBudget ? "text-[var(--state-offline-ink)]" : "text-ink-muted"}`}
         >
           {estimate.estimated_cells.toLocaleString()} cells estimated
           {overBudget
@@ -146,7 +146,7 @@ export function CoverageControls({
         </p>
       )}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-[var(--state-offline-ink)]">{error}</p>}
     </div>
   );
 }

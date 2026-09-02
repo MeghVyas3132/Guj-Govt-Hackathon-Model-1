@@ -165,7 +165,7 @@ function Vocabulary({ onError, onNotice }: Handlers) {
             onClick={() => setSelected(d.dimension)}
             className={`rounded px-2 py-1 text-xs ${
               selected === d.dimension
-                ? "bg-slate-900 text-white"
+                ? "bg-[var(--brand)] text-white"
                 : "bg-sunken text-ink"
             }`}
           >
@@ -199,14 +199,14 @@ function Vocabulary({ onError, onNotice }: Handlers) {
                 )}
                 <td className="px-3 py-2">
                   {term.is_fallback && (
-                    <span className="mr-1 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800">
+                    <span className="mr-1 rounded bg-[var(--brand-tint)] px-1.5 py-0.5 text-xs text-[var(--brand)]">
                       fallback
                     </span>
                   )}
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs ${
                       term.is_active
-                        ? "bg-green-100 text-green-800"
+                        ? "bg-[var(--state-online-bg)] text-[var(--state-online-ink)]"
                         : "bg-sunken text-ink-muted"
                     }`}
                   >
@@ -426,8 +426,8 @@ function Keys({ onError, onNotice }: Handlers) {
   return (
     <>
       {issued && (
-        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3">
-          <p className="mb-1 text-xs font-semibold uppercase text-amber-800">
+        <div className="mb-4 rounded border [border-color:color-mix(in_oklch,var(--state-maintenance-ink)_30%,transparent)] bg-[var(--state-maintenance-bg)] p-3">
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--state-maintenance-ink)]">
             Copy this now — it is not stored and cannot be shown again
           </p>
           <code className="block break-all text-sm">{issued}</code>
@@ -457,8 +457,8 @@ function Keys({ onError, onNotice }: Handlers) {
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs ${
                       key.revoked_at
-                        ? "bg-red-100 text-red-800"
-                        : "bg-green-100 text-green-800"
+                        ? "bg-[var(--state-offline-bg)] text-[var(--state-offline-ink)]"
+                        : "bg-[var(--state-online-bg)] text-[var(--state-online-ink)]"
                     }`}
                   >
                     {key.revoked_at ? "revoked" : "active"}
@@ -468,7 +468,7 @@ function Keys({ onError, onNotice }: Handlers) {
                   {!key.revoked_at && (
                     <button
                       onClick={() => revoke(key.id)}
-                      className="text-xs text-red-600 underline-offset-2 hover:underline"
+                      className="text-xs text-[var(--state-offline-ink)] underline-offset-2 hover:underline"
                     >
                       Revoke
                     </button>

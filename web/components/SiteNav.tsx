@@ -15,6 +15,7 @@ const LINKS: { href: string; label: string; scope?: string }[] = [
   { href: "/ageing", label: "Ageing", scope: "cameras:read" },
   { href: "/onboarding", label: "Onboarding", scope: "cameras:write" },
   { href: "/connectors", label: "Connectors", scope: "admin" },
+  { href: "/webhooks", label: "Alerts", scope: "admin" },
   { href: "/admin", label: "Admin", scope: "admin" },
 ];
 

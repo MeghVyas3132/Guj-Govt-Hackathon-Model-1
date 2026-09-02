@@ -123,11 +123,11 @@ export default function NewCameraPage() {
       )}
 
       {errors.length > 0 && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm">
-          <p className="mb-2 font-medium text-red-800">This camera was not accepted:</p>
+        <div className="mb-4 rounded border [border-color:color-mix(in_oklch,var(--state-offline-ink)_30%,transparent)] bg-[var(--state-offline-bg)] p-3 text-sm">
+          <p className="mb-2 font-medium text-[var(--state-offline-ink)]">This camera was not accepted:</p>
           <ul className="space-y-1">
             {errors.map((error) => (
-              <li key={`${error.field}-${error.code}`} className="text-red-700">
+              <li key={`${error.field}-${error.code}`} className="text-[var(--state-offline-ink)]">
                 <span className="font-mono text-xs">{error.field ?? "—"}</span>{" "}
                 {error.message}
               </li>
@@ -311,7 +311,7 @@ function Field({
     <label className="block">
       <span className="mb-1 block text-[length:var(--text-xs)] font-medium text-ink-muted">
         {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
+        {required && <span className="ml-1 text-[var(--state-offline-ink)]">*</span>}
       </span>
       {children}
       {hint && <span className="mt-1 block text-[length:var(--text-xs)] text-ink-faint">{hint}</span>}

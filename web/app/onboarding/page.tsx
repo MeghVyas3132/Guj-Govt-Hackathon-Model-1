@@ -24,10 +24,10 @@ type Report = {
 };
 
 const OUTCOME_STYLE: Record<string, string> = {
-  created: "bg-green-100 text-green-800",
-  updated: "bg-blue-100 text-blue-800",
+  created: "bg-[var(--state-online-bg)] text-[var(--state-online-ink)]",
+  updated: "bg-[var(--brand-tint)] text-[var(--brand)]",
   skipped: "bg-sunken text-ink-muted",
-  failed: "bg-red-100 text-red-800",
+  failed: "bg-[var(--state-offline-bg)] text-[var(--state-offline-ink)]",
 };
 
 export default function OnboardingPage() {
@@ -179,7 +179,7 @@ export default function OnboardingPage() {
               {result ? "Imported" : "Validation result — nothing written yet"}
             </h2>
             {result && (
-              <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+              <span className="rounded bg-[var(--state-online-bg)] px-2 py-0.5 text-xs text-[var(--state-online-ink)]">
                 committed
               </span>
             )}
@@ -187,10 +187,10 @@ export default function OnboardingPage() {
 
           <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Stat label="Rows" value={report.total} />
-            <Stat label="Created" value={report.created} tone="text-green-700" />
-            <Stat label="Updated" value={report.updated} tone="text-blue-700" />
+            <Stat label="Created" value={report.created} tone="text-[var(--state-online-ink)]" />
+            <Stat label="Updated" value={report.updated} tone="text-[var(--brand)]" />
             <Stat label="Unchanged" value={report.skipped} />
-            <Stat label="Failed" value={report.failed} tone="text-red-700" />
+            <Stat label="Failed" value={report.failed} tone="text-[var(--state-offline-ink)]" />
           </div>
 
           {problems.length > 0 && (
@@ -222,13 +222,13 @@ export default function OnboardingPage() {
                       </td>
                       <td className="px-3 py-2">
                         {row.errors.map((e) => (
-                          <p key={e.code} className="text-red-700">
+                          <p key={e.code} className="text-[var(--state-offline-ink)]">
                             <span className="font-mono text-xs">{e.code}</span>{" "}
                             {e.message}
                           </p>
                         ))}
                         {row.warnings.map((w, i) => (
-                          <p key={i} className="text-amber-700">
+                          <p key={i} className="text-[var(--state-maintenance-ink)]">
                             {w}
                           </p>
                         ))}
