@@ -62,17 +62,20 @@ differently.
 | CSV export and per-camera change history | `/cameras` |
 | Vocabulary, aliases, keys, audit trail | `/admin` |
 
-**575 tests · 47 API paths · 17 tables · 10 migrations · 13 pages.**
+**583 tests · 47 API paths · 17 tables · 10 migrations · 13 pages.**
 
 ### Documentation
 
 | | |
 |---|---|
+| [High-Level Design](docs/HLD.md) | Architecture, data flow, integration methodology |
 | [Onboarding a department](docs/api/onboarding-guide.md) | The four ways data gets in |
 | [Where metadata comes from](docs/api/metadata.md) | Deriving what a source omits |
 | [Gap analysis](docs/api/reports.md) | Coverage and ageing infrastructure |
 | [Event subscriptions](docs/api/webhooks.md) | Signed alerts, and how to verify them |
 | [OpenAPI spec](docs/api/openapi.json) | Generated, and drift-tested against the code |
+| [Sample dataset](docs/sample-camera-dataset.csv) | 1,030 onboarded cameras, 25 columns |
+| [Sample gap-analysis report](docs/sample-gap-analysis-report.html) | Generated from real data |
 
 ---
 

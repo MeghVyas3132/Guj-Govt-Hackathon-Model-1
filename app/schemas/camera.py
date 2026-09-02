@@ -63,6 +63,20 @@ class CameraCreate(CameraBase):
     operator_department_id: UUID | None = None
 
 
+class CameraBulkItem(CameraBase):
+    """One record in a bulk API onboarding request.
+
+    `department_id` is optional here, unlike CameraCreate: the bulk endpoint
+    takes the department as a query parameter, and that is the value the
+    permission check runs against. Requiring it per record would make an
+    integrator repeat the same UUID on every row of a nightly export. Supplying
+    a *different* one is rejected rather than ignored.
+    """
+
+    department_id: UUID | None = None
+    operator_department_id: UUID | None = None
+
+
 class CameraUpdate(BaseModel):
     name: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)

@@ -330,6 +330,268 @@
         "title": "BoundaryRead",
         "type": "object"
       },
+      "CameraBulkItem": {
+        "description": "One record in a bulk API onboarding request.\n\n`department_id` is optional here, unlike CameraCreate: the bulk endpoint\ntakes the department as a query parameter, and that is the value the\npermission check runs against. Requiring it per record would make an\nintegrator repeat the same UUID on every row of a nightly export. Supplying\na *different* one is rejected rather than ignored.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amc_expiry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Expiry Date"
+          },
+          "amc_vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amc Vendor"
+          },
+          "azimuth_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              135.0
+            ],
+            "title": "Azimuth Deg"
+          },
+          "camera_technology": {
+            "default": "ip",
+            "title": "Camera Technology",
+            "type": "string"
+          },
+          "camera_type": {
+            "default": "fixed",
+            "title": "Camera Type",
+            "type": "string"
+          },
+          "connectivity": {
+            "default": "unknown",
+            "title": "Connectivity",
+            "type": "string"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Id"
+          },
+          "external_camera_id": {
+            "examples": [
+              "cam04"
+            ],
+            "title": "External Camera Id",
+            "type": "string"
+          },
+          "fov_deg": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 360.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              90.0
+            ],
+            "title": "Fov Deg"
+          },
+          "has_night_vision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Night Vision"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height M"
+          },
+          "install_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Install Date"
+          },
+          "latitude": {
+            "examples": [
+              23.0225
+            ],
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "examples": [
+              72.5714
+            ],
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "description": "Department-specific fields with no canonical home. Never dropped.",
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Nehru Bridge East Approach"
+            ],
+            "title": "Name"
+          },
+          "operator_department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Department Id"
+          },
+          "ownership_class": {
+            "default": "government",
+            "title": "Ownership Class",
+            "type": "string"
+          },
+          "range_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              100.0
+            ],
+            "title": "Range M"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              15
+            ],
+            "title": "Retention Days"
+          },
+          "site_type": {
+            "default": "other",
+            "title": "Site Type",
+            "type": "string"
+          },
+          "storage_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "local"
+            ],
+            "title": "Storage Type"
+          }
+        },
+        "required": [
+          "external_camera_id",
+          "latitude",
+          "longitude"
+        ],
+        "title": "CameraBulkItem",
+        "type": "object"
+      },
       "CameraCreate": {
         "properties": {
           "address": {
@@ -6401,7 +6663,7 @@
     },
     "/api/v1/onboarding/bulk": {
       "post": {
-        "description": "Same validation and normalization as CSV upload \u2014 only the source differs.",
+        "description": "Same validation and normalization as CSV upload -- only the source differs. Use `mode=validate_only` to dry-run: nothing is written, but the report says exactly what would happen, which is what lets an integration verify a nightly export before it commits to it.",
         "operationId": "bulk_api_v1_onboarding_bulk_post",
         "parameters": [
           {
@@ -6411,6 +6673,22 @@
             "schema": {
               "format": "uuid",
               "title": "Department Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`validate_only` writes nothing and reports what would happen.",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "commit",
+              "description": "`validate_only` writes nothing and reports what would happen.",
+              "enum": [
+                "validate_only",
+                "commit"
+              ],
+              "title": "Mode",
               "type": "string"
             }
           },
@@ -6452,7 +6730,7 @@
             "application/json": {
               "schema": {
                 "items": {
-                  "$ref": "#/components/schemas/CameraCreate"
+                  "$ref": "#/components/schemas/CameraBulkItem"
                 },
                 "title": "Payload",
                 "type": "array"

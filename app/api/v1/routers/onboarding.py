@@ -13,7 +13,7 @@ from app.core.deps import require_scope
 from app.core.enums import SourceType
 from app.models.department import Department
 from app.schemas.auth import Principal
-from app.schemas.camera import CameraCreate
+from app.schemas.camera import CameraBulkItem, CameraCreate
 from app.schemas.ingestion import IngestReport, RawCameraRecord
 from app.services.ingestion import IngestionService
 
@@ -88,7 +88,7 @@ async def import_file(
     return await _run_csv(session, department_id, file, "commit", principal)
 
 
-def _api_payload(item: CameraCreate) -> dict:
+def _api_payload(item: CameraCreate | CameraBulkItem) -> dict:
     """Flatten one CameraCreate into the flat dict shape the resolver expects.
 
     department_id and operator_department_id are routing, not camera attributes — the
@@ -109,15 +109,43 @@ def _api_payload(item: CameraCreate) -> dict:
     "/bulk",
     response_model=IngestReport,
     summary="API onboarding for departmental systems",
-    description="Same validation and normalization as CSV upload — only the source differs.",
+    description=(
+        "Same validation and normalization as CSV upload -- only the source "
+        "differs. Use `mode=validate_only` to dry-run: nothing is written, but "
+        "the report says exactly what would happen, which is what lets an "
+        "integration verify a nightly export before it commits to it."
+    ),
 )
 async def bulk(
-    payload: list[CameraCreate],
+    payload: list[CameraBulkItem],
     department_id: UUID = Query(...),
+    mode: Literal["validate_only", "commit"] = Query(
+        "commit",
+        description="`validate_only` writes nothing and reports what would happen.",
+    ),
     principal: Principal = Depends(require_scope("cameras:write")),
     session: AsyncSession = Depends(get_session),
 ) -> IngestReport:
     department = await _department(session, department_id, principal)
+
+    # The query parameter is authoritative -- it is the one the permission check
+    # above was performed against. A record naming a different department is
+    # rejected rather than silently rewritten, because silently moving someone's
+    # camera into another department is exactly the bug nobody would notice.
+    mismatched = [
+        item.external_camera_id
+        for item in payload
+        if item.department_id is not None and item.department_id != department_id
+    ]
+    if mismatched:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{len(mismatched)} record(s) name a different department_id than "
+                f"the one in the query string: {mismatched[:5]}"
+            ),
+        )
+
     records = [
         RawCameraRecord(
             payload=_api_payload(item),
@@ -127,7 +155,7 @@ async def bulk(
         for item in payload
     ]
     return await IngestionService(session).ingest(
-        records, department, mode="commit", actor=principal
+        records, department, mode=mode, actor=principal
     )
 
 
