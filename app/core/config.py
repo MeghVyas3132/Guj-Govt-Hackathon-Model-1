@@ -17,12 +17,35 @@ DEFAULT_USER_AGENT = (
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", env_prefix="SENTINEL_"
+    )
 
     database_url: str = "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"
     redis_url: str = "redis://localhost:6379"
     api_v1_prefix: str = "/api/v1"
     gujarat_bbox: tuple[float, float, float, float] = (68.0, 20.0, 74.6, 24.8)
+
+    # Browser origins allowed to call this API. The default is the local dev
+    # frontend; a deployment MUST set this or the deployed portal -- and any
+    # other model's browser client -- is refused by CORS with an error that
+    # looks like the API being down.
+    #
+    # Comma-separated in the environment:
+    #   SENTINEL_CORS_ORIGINS=https://registry.example.gov.in,https://model2.example.gov.in
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # Where the RS256 signing key lives. It is generated on first use if absent,
+    # which is right for development and wrong for a container with ephemeral
+    # storage: a new key every restart invalidates every issued token and breaks
+    # the offline JWKS verification other models rely on. Point this at a mounted
+    # volume, or supply the PEM directly through jwt_private_key_pem.
+    jwt_private_key_path: str = "keys/jwt_private.pem"
+    jwt_private_key_pem: str | None = None
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

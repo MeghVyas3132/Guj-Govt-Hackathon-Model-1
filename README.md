@@ -74,6 +74,7 @@ differently.
 
 | | |
 |---|---|
+| [Deploying it](DEPLOYMENT.md) | VM sizing, required settings, what to hand Model 2 |
 | [What every screen does](UI-GUIDE.md) | The portal, page by page |
 | [Architecture & workflow](ARCHITECTURE.md) | How it fits together, and where to optimise |
 | [Notes for Model 2](MODEL-2-STREAMING.md) | Playing the sandbox feeds, and what we already provide |

@@ -12,6 +12,8 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
+
+from app.core.config import settings
 from typing import Any
 
 import jwt
@@ -57,19 +59,33 @@ def generate_api_key() -> tuple[str, str, str]:
 
 @lru_cache(maxsize=1)
 def _private_key() -> rsa.RSAPrivateKey:
-    if KEY_PATH.exists():
-        return serialization.load_pem_private_key(KEY_PATH.read_bytes(), password=None)
+    """The RS256 signing key.
+
+    Three sources, in order. A PEM supplied through the environment wins, which
+    is how a deployment keeps one stable key across replicas and restarts --
+    without it every restart mints a new key, invalidating every issued token
+    and breaking the offline JWKS verification Models 2-4 depend on. Otherwise a
+    file, and finally generation, which is correct for development only.
+    """
+    if settings.jwt_private_key_pem:
+        return serialization.load_pem_private_key(
+            settings.jwt_private_key_pem.encode(), password=None
+        )
+
+    key_path = Path(settings.jwt_private_key_path)
+    if key_path.exists():
+        return serialization.load_pem_private_key(key_path.read_bytes(), password=None)
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    KEY_PATH.write_bytes(
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key_path.write_bytes(
         key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         )
     )
-    KEY_PATH.chmod(0o600)
+    key_path.chmod(0o600)
     return key
 
 
