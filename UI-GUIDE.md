@@ -296,6 +296,7 @@ encrypted**, and every one is a **recorded 12-hour loop**, not a live feed.
 | Re-import reports everything **skipped** | Correct. Idempotency working; nothing changed, so nothing was written. |
 | Coverage of ~4% | Also correct. 80,000 cameras across 196,000 km² is genuinely sparse. That is the finding. |
 | Enrichment takes ~16s per camera | Expected. It decodes real encrypted media. A fleet-scale run is an overnight job. |
+| You stay signed in past 15 minutes | Correct. The access token expires then and is renewed silently in the background. |
 
 ---
 

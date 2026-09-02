@@ -57,3 +57,19 @@ async def test_connection_failure_is_reported_offline():
     )
     assert result.status is CameraStatus.OFFLINE
     assert result.detail["error"] == "ConnectError"
+
+
+@pytest.mark.asyncio
+async def test_the_probe_identifies_itself():
+    """Without a browser-shaped agent this gateway answers 403, which would be
+    recorded as a fleet-wide outage rather than as our request being refused."""
+    from app.core.config import DEFAULT_USER_AGENT
+
+    seen = {}
+
+    def handler(request):
+        seen["ua"] = request.headers.get("user-agent")
+        return httpx.Response(200, text="#EXTM3U\n#EXTINF:4,\ns.ts\n")
+
+    await HlsProbe(transport=httpx.MockTransport(handler)).check("https://gw.test/i.m3u8")
+    assert seen["ua"] == DEFAULT_USER_AGENT

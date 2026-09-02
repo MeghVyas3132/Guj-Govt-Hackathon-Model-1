@@ -17,6 +17,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from app.core.config import DEFAULT_USER_AGENT
+
 # Big enough for an HLS segment at broadcast bitrates, small enough that this
 # cannot be turned into a general-purpose file relay.
 MAX_BODY = 24 * 1024 * 1024
@@ -142,7 +144,12 @@ class StreamProxy:
             raise UpstreamError(400, "Target is not on the camera's own stream host")
 
         cookies = {cookie_name: secret} if (secret and cookie_name) else None
-        headers = {header_name: secret} if (secret and header_name) else None
+        # Gateways commonly refuse media to a client that does not look like a
+        # browser -- the Sentinel sandbox answers 403 "browser required". The
+        # agent is self-identifying rather than an impersonation.
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
+        if secret and header_name:
+            headers[header_name] = secret
 
         try:
             async with httpx.AsyncClient(

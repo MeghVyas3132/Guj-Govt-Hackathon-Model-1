@@ -227,3 +227,44 @@ async def test_no_credential_is_sent_when_none_is_configured():
 
     await proxy(handler).fetch("https://gw.test/a.ts", allowed_origin=BASE)
     assert seen["cookie"] is None
+
+
+# ---- the gateway refuses non-browser clients ---------------------------------
+
+@pytest.mark.asyncio
+async def test_a_self_identifying_user_agent_is_sent():
+    """The Sentinel gateway answers 403 "browser required" to any User-Agent
+    without a Mozilla/ prefix, including a bare "sentinel-registry/1.0".
+    Verified live: the honest "Mozilla/5.0 (compatible; ...)" form is accepted,
+    so nothing here pretends to be a browser it is not."""
+    from app.core.config import DEFAULT_USER_AGENT
+
+    seen = {}
+
+    def handler(request):
+        seen["ua"] = request.headers.get("user-agent")
+        return httpx.Response(200, content=b"x")
+
+    await proxy(handler).fetch("https://gw.test/a.ts", allowed_origin=BASE)
+    assert seen["ua"] == DEFAULT_USER_AGENT
+    assert seen["ua"].startswith("Mozilla/5.0 (compatible;")
+    assert "SentinelRegistry" in seen["ua"]
+
+
+@pytest.mark.asyncio
+async def test_a_header_credential_does_not_displace_the_user_agent():
+    """Both are headers; setting the credential must not overwrite the agent."""
+    from app.core.config import DEFAULT_USER_AGENT
+
+    seen = {}
+
+    def handler(request):
+        seen["ua"] = request.headers.get("user-agent")
+        seen["key"] = request.headers.get("x-key")
+        return httpx.Response(200, content=b"x")
+
+    await proxy(handler).fetch(
+        "https://gw.test/a.ts", allowed_origin=BASE, secret="s", header_name="X-Key"
+    )
+    assert seen["ua"] == DEFAULT_USER_AGENT
+    assert seen["key"] == "s"

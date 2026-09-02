@@ -4,6 +4,8 @@ from typing import Any
 
 import httpx
 
+from app.core.config import DEFAULT_USER_AGENT
+
 from app.core.enums import CameraStatus
 
 # Any of these means the CDN bounced us somewhere else -- in practice the login page,
@@ -48,7 +50,12 @@ class HlsProbe:
         assumption that does not survive a second department.
         """
         cookies = {cookie_name: secret} if (secret and cookie_name) else None
-        headers = {header_name: secret} if (secret and header_name) else None
+        # Without a browser-shaped agent this gateway answers 403, which would
+        # be recorded as a fleet-wide outage rather than as our own request
+        # being refused.
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
+        if secret and header_name:
+            headers[header_name] = secret
         started = time.perf_counter()
         try:
             async with httpx.AsyncClient(

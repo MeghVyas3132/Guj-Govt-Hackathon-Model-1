@@ -566,3 +566,22 @@ async def test_a_transport_error_names_the_stage_that_failed():
     e = StreamEnricher(transport=httpx.MockTransport(boom), retry_backoff_s=0)
     m = await e.enrich("https://gw.test/i.m3u8")
     assert m.error == "ReadTimeout fetching manifest"
+
+
+@pytest.mark.asyncio
+async def test_the_enricher_identifies_itself():
+    """Same gateway, same 403 without it."""
+    from app.core.config import DEFAULT_USER_AGENT
+
+    seen = {}
+
+    def handler(request):
+        seen["ua"] = request.headers.get("user-agent")
+        seen["range"] = request.headers.get("range")
+        return httpx.Response(206, content=b"\x00" * 64)
+
+    e = StreamEnricher(transport=httpx.MockTransport(handler), retry_backoff_s=0)
+    await e._fetch("https://gw.test/a.ts", None, None, None, prefix_bytes=64)
+    assert seen["ua"] == DEFAULT_USER_AGENT
+    # The Range header must survive alongside it.
+    assert seen["range"] == "bytes=0-63"

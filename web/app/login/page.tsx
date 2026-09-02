@@ -34,11 +34,15 @@ export default function LoginPage() {
         setError("Incorrect email or password.");
         return;
       }
-      const { access_token: accessToken } = await response.json();
+      const { access_token: accessToken, refresh_token: refreshToken } =
+        await response.json();
       const me = await fetch(`${API}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      setSession(accessToken, (await me.json()) as CurrentUser);
+      // The refresh token is kept, not discarded: the access token expires in
+      // 15 minutes and apiFetch renews it silently rather than dropping the
+      // operator back at this form mid-task.
+      setSession(accessToken, (await me.json()) as CurrentUser, refreshToken);
       router.push("/map");
       router.refresh();
     } catch {

@@ -23,6 +23,8 @@ from urllib.parse import urljoin
 import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from app.core.config import DEFAULT_USER_AGENT
+
 # "#EXT-X-KEY:METHOD=AES-128,URI="/enc.key",IV=0x00"
 _ATTR = re.compile(r'([A-Z0-9-]+)=("[^"]*"|[^,]*)')
 
@@ -352,12 +354,14 @@ class StreamEnricher:
         succeeded a moment later.
         """
         cookies = {cookie_name: secret} if (secret and cookie_name) else None
-        headers = {header_name: secret} if (secret and header_name) else None
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
+        if secret and header_name:
+            headers[header_name] = secret
         if prefix_bytes:
             # A gateway free to ignore this returns 200 and the whole body, which
             # still works -- just slower. Nothing depends on the range being
             # honoured.
-            headers = {**(headers or {}), "Range": f"bytes=0-{prefix_bytes - 1}"}
+            headers["Range"] = f"bytes=0-{prefix_bytes - 1}"
 
         last: Exception | None = None
         for attempt in range(self.max_retries + 1):
