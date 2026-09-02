@@ -55,14 +55,28 @@ differently.
 | Radius and district spatial search | `GET /api/v1/cameras/nearby` |
 | Health monitoring ranked by downtime | `/health` |
 | Coverage gap analysis and report | `/coverage` |
+| Coverage as a map overlay | `/map` |
+| Ageing infrastructure and AMC expiry | `/ageing` |
+| Metadata derived from the stream itself | `POST /api/v1/cameras/{id}/enrich` |
+| Signed outbound alerts on camera state | `/webhooks` |
 | CSV export and per-camera change history | `/cameras` |
 | Vocabulary, aliases, keys, audit trail | `/admin` |
 
-**296 tests · 38 API paths · 15 tables · 9 migrations · 9 pages.**
+**575 tests · 47 API paths · 17 tables · 10 migrations · 13 pages.**
+
+### Documentation
+
+| | |
+|---|---|
+| [Onboarding a department](docs/api/onboarding-guide.md) | The four ways data gets in |
+| [Where metadata comes from](docs/api/metadata.md) | Deriving what a source omits |
+| [Gap analysis](docs/api/reports.md) | Coverage and ageing infrastructure |
+| [Event subscriptions](docs/api/webhooks.md) | Signed alerts, and how to verify them |
+| [OpenAPI spec](docs/api/openapi.json) | Generated, and drift-tested against the code |
 
 ---
 
-## The three ideas this is built on
+## The four ideas this is built on
 
 ### 1. One pipeline, whatever the source
 
@@ -100,7 +114,21 @@ There is no vendor name anywhere in the application. `RestCatalogueAdapter` does
 not know that "sentinel" exists, nor that HLS or RTSP exist — it does what the
 connector row says. Auth is generic: cookie, header, bearer, basic or none.
 
-### 3. Never silently lose what you were told
+### 3. Ask the thing itself
+
+A source catalogue rarely carries what a registry needs — the organisers' own
+sandbox returns an id and a name, and nothing else. So the registry derives the
+rest rather than recording nulls: codec, resolution and frame rate by reading the
+camera's own manifest and decoding one segment; position by resolving a place
+name to a district and marking the result as district-level rather than
+pretending it is surveyed.
+
+Verified against the live sandbox: 29 of 30 cameras place to a district from
+their name, and enrichment reports genuinely different hardware per camera —
+1920×1080 at 30fps for one, 1280×960 at 25fps for another. See
+[docs/api/metadata.md](docs/api/metadata.md).
+
+### 4. Never silently lose what you were told
 
 A camera type this registry has never seen is **recorded, not discarded**. It
 normalises to the dimension's fallback so it stays queryable, the original text is

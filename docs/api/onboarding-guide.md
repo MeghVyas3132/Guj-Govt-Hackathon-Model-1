@@ -210,3 +210,55 @@ curl -X POST localhost:8000/api/v1/admin/api-keys -H "$AUTH" \
 The key is returned once and never again — only its hash is stored. Send it as
 `X-API-Key`. An API key's scopes are its own rather than its role's, so a
 read-only integration cannot write.
+
+---
+
+## After onboarding: filling in what the source did not send
+
+Most catalogues carry an identifier and a name. Once cameras are in, ask the
+streams themselves for the rest:
+
+```bash
+curl -X POST "localhost:8000/api/v1/cameras/enrich?department_id=$DEPT&limit=100" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+This establishes codec, resolution, frame rate, encryption and whether each feed
+is live or a recorded loop. It is safe to re-run: a failed probe leaves existing
+values alone rather than blanking them.
+
+Full detail, including how position is derived and how honestly it is recorded,
+is in [metadata.md](metadata.md).
+
+## Checking the result
+
+Two reports answer the two questions a department will actually ask.
+
+```bash
+# Where is nothing watching?
+curl -X POST localhost:8000/api/v1/coverage/runs \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"district": "Bhavnagar", "hex_edge_m": 250}'
+
+# What is about to stop watching?
+curl "localhost:8000/api/v1/lifecycle/ageing?department_id=$DEPT" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+See [reports.md](reports.md) for how to read them — in particular why
+`needs_attention` is deliberately not the sum of its categories.
+
+## Being told when something changes
+
+Rather than polling, subscribe:
+
+```bash
+curl -X POST localhost:8000/api/v1/webhooks \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "Ops", "url": "https://ops.example.gov.in/hooks/sentinel",
+       "events": ["camera.offline"], "secret_ref": "ops_hook_secret",
+       "department_id": "'"$DEPT"'"}'
+```
+
+Payloads are signed. Verify the signature before acting on one —
+[webhooks.md](webhooks.md) has the recipe and the reasoning.
