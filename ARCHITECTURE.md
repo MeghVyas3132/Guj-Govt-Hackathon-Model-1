@@ -369,6 +369,7 @@ Honest list, worst first.
 |---|---|---|---|
 | **External gateway latency** | ~11s/request, degrades under load; entirely outside our control | convergent runs, key cache, retry/backoff, bounded concurrency | partition workers by department, stagger schedules |
 | **Session credential expiry** | a stale cookie makes every probe look like an outage | redirects recorded as `unknown`, never `offline` | automated re-login per connector |
+| **False outages from our own probe** | the gateway slows under concurrency, so a high fan-out manufactures the timeouts it then reports — this invented six outages on thirty healthy cameras | concurrency 6, timeout 30s, one retry, and a timeout recorded as `unknown` rather than `offline` | per-department schedules so one slow source cannot starve another |
 | **Gateway client checks** | the sandbox answers 403 "browser required" to any User-Agent without a `Mozilla/` prefix — silently, on media only, while the catalogue keeps working | all three outbound services send a self-identifying `Mozilla/5.0 (compatible; SentinelRegistry/1.0; …)`, verified accepted | make it per-connector config if a source demands something else |
 | **Coverage at state scale** | cell count grows quadratically with area/edge² | hard cap at 250k cells | precompute per district overnight |
 | **Single Postgres** | tiles, coverage and writes share one instance | indexed, bounded queries | read replicas for tiles |

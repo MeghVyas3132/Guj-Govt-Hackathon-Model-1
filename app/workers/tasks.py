@@ -21,7 +21,12 @@ from app.services.probe import HlsProbe, ProbeResult
 # Bounded so a large fleet cannot open thousands of sockets at once. At 80k cameras the
 # design is a worker pool partitioned by department with staggered schedules; here we
 # probe a capped sample, which is honest and demonstrable.
-PROBE_CONCURRENCY = 20
+#
+# Six, not twenty. The gateway degrades under concurrency -- measured at a 17.5s
+# tail with 30 requests in flight against 1.4s for one -- so a high fan-out makes
+# the probe manufacture the very timeouts it then reports. Fewer, slower, correct
+# beats more, faster, wrong.
+PROBE_CONCURRENCY = 6
 PROBE_BATCH = 200
 
 

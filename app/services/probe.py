@@ -30,10 +30,16 @@ class HlsProbe:
     def __init__(
         self,
         transport: httpx.AsyncBaseTransport | None = None,
-        timeout: float = 10.0,
+        # Sized to the gateway, not to a guess. A manifest here is 216KB with
+        # 7,200 entries and takes 1-3s unloaded, but degrades badly under
+        # concurrency -- measured at a 17.5s tail with 30 in flight. At the old
+        # 10s this reported healthy cameras as offline.
+        timeout: float = 30.0,
+        retries: int = 1,
     ) -> None:
         self.transport = transport
         self.timeout = timeout
+        self.retries = retries
 
     async def check(
         self,
@@ -57,23 +63,52 @@ class HlsProbe:
         if secret and header_name:
             headers[header_name] = secret
         started = time.perf_counter()
-        try:
-            async with httpx.AsyncClient(
-                transport=self.transport,
-                timeout=self.timeout,
-                cookies=cookies,
-                headers=headers,
-                # follow_redirects=False is load-bearing, not a default left alone: the
-                # 3xx is the signal. Followed, the login page would come back 200 with
-                # no #EXTINF in it and every camera behind an expired session would be
-                # recorded OFFLINE -- a password change painting the whole fleet red.
-                follow_redirects=False,
-            ) as client:
-                response = await client.get(url)
-        except httpx.HTTPError as exc:
+        last: Exception | None = None
+        response = None
+
+        for attempt in range(self.retries + 1):
+            try:
+                async with httpx.AsyncClient(
+                    transport=self.transport,
+                    timeout=self.timeout,
+                    cookies=cookies,
+                    headers=headers,
+                    # follow_redirects=False is load-bearing, not a default left alone: the
+                    # 3xx is the signal. Followed, the login page would come back 200 with
+                    # no #EXTINF in it and every camera behind an expired session would be
+                    # recorded OFFLINE -- a password change painting the whole fleet red.
+                    follow_redirects=False,
+                ) as client:
+                    response = await client.get(url)
+                break
+            except (httpx.TimeoutException, httpx.ReadError) as exc:
+                # Worth one more try: a slow gateway is the normal case here, and
+                # a single slow response is not evidence of anything.
+                last = exc
+                continue
+            except httpx.HTTPError as exc:
+                # Refused, unresolvable, TLS failure. This *is* evidence about the
+                # endpoint, so it is recorded as an outage.
+                return ProbeResult(
+                    status=CameraStatus.OFFLINE,
+                    detail={"error": type(exc).__name__, "message": str(exc)},
+                )
+
+        if response is None:
+            # We timed out. That is a fact about our request, not about the
+            # camera -- exactly the reasoning already applied to a redirect
+            # below. Recording it as OFFLINE invented six outages on a fleet of
+            # thirty healthy cameras, because the probe ran twenty at a time
+            # against a gateway that slows under concurrency.
             return ProbeResult(
-                status=CameraStatus.OFFLINE,
-                detail={"error": type(exc).__name__, "message": str(exc)},
+                status=CameraStatus.UNKNOWN,
+                detail={
+                    "error": type(last).__name__ if last else "Timeout",
+                    "reason": (
+                        f"no response within {self.timeout:.0f}s after "
+                        f"{self.retries + 1} attempts; the camera may be fine"
+                    ),
+                },
             )
 
         latency_ms = int((time.perf_counter() - started) * 1000)

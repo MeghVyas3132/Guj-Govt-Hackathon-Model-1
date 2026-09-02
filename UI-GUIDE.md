@@ -292,7 +292,7 @@ encrypted**, and every one is a **recorded 12-hour loop**, not a live feed.
 | *"Position is district-level, not surveyed"* | Located from a place name. Real coordinates update it in place — no re-import. |
 | *"Values this registry did not recognise were kept"* | An unknown vocabulary value was preserved, not dropped. Add a term in Admin. |
 | *"not recorded — treated as omnidirectional"* | No bearing recorded, so coverage assumes it sees all directions. |
-| Status **unknown** rather than offline | A probe was redirected — our session expired, which says nothing about the camera. |
+| Status **unknown** rather than offline | Our probe was redirected or timed out. Both are facts about *our request*, not about the camera, so the registry declines to call it an outage. |
 | Re-import reports everything **skipped** | Correct. Idempotency working; nothing changed, so nothing was written. |
 | Coverage of ~4% | Also correct. 80,000 cameras across 196,000 km² is genuinely sparse. That is the finding. |
 | Enrichment takes ~16s per camera | Expected. It decodes real encrypted media. A fleet-scale run is an overnight job. |
