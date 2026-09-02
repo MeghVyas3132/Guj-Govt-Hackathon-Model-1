@@ -13,6 +13,7 @@ from app.api.v1.routers import (
     onboarding,
     tiles,
     vocabulary,
+    webhooks,
 )
 
 api_router = APIRouter()
@@ -28,3 +29,4 @@ api_router.include_router(lifecycle.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(tiles.router)
 api_router.include_router(vocabulary.router)
+api_router.include_router(webhooks.router)

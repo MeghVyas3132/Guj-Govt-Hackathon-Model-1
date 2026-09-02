@@ -29,6 +29,7 @@ from app.models import (  # noqa: F401
     stream_endpoint,
     user,
     vocabulary,
+    webhook,
 )
 from app.models.base import Base
 
