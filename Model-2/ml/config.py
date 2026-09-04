@@ -66,6 +66,43 @@ class Settings(BaseSettings):
     plate_conf_threshold: float = 0.5
     detection_conf_threshold: float = 0.35
 
+    yolo_imgsz: int = 1280
+    """Inference resolution for the vehicle detector.
+
+    Ultralytics defaults to 640, which letterboxes a 1920x1080 frame down by 3x
+    before the model sees it — a vehicle 30 px wide at the far end of a junction
+    becomes 10 px and drops below the detector's smallest head. Since these feeds
+    are 1080p, 640 throws away the resolution we have. 1280 costs about 4x the
+    FLOPs and finds the distant vehicles that make up most of the frame.
+    """
+
+    min_plate_width_px: int = 60
+    """Reject plate crops narrower than this before OCR.
+
+    Industry guidance for ANPR is 100-150 px of plate width. Below roughly 60
+    there is nothing left to read, and the OCR returns confident nonsense that
+    would outvote the good reads during per-track voting.
+    """
+
+    # ── Per-track aggregation ────────────────────────────────────────────────
+    track_keep_best: int = 3
+    """How many of a track's sharpest crops to keep for embedding and ANPR."""
+
+    max_plate_reads_per_track: int = 25
+    """Cap on OCR attempts per vehicle.
+
+    Voting needs many reads to beat the compression, but a vehicle queuing at a
+    signal can stay in frame for hundreds of frames, and reads past the first
+    couple of dozen add cost without changing the outcome.
+    """
+
+    track_idle_frames: int = 45
+    """Processed frames without a sighting before a track is considered finished.
+
+    Must exceed the tracker's own track_buffer (30), or a vehicle briefly hidden
+    behind a bus is closed and reopened as two separate vehicles.
+    """
+
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = "postgresql://setu:setu_dev_only@localhost:5432/setu"
 

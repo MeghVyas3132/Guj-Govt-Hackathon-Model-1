@@ -25,15 +25,34 @@ import socket
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from typing import Generator, Optional
 
 import cv2
+import numpy as np
 import requests
 from Crypto.Cipher import AES
 
 from ml.config import settings
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class FrameRef:
+    """One decoded frame, and where it sits in the archive.
+
+    ``archive_ms`` is the only field safe to reason about time with. ``pts_ms``
+    restarts at zero on every segment, so on its own it cannot order two frames
+    or seek a player — it only means something alongside ``seg_idx``.
+    """
+
+    frame_idx: int          # monotonic across the run; not an archive position
+    seg_idx: int            # index into the 12-hour archive, -1 for RTSP
+    pts_ms: float           # position within this segment
+    archive_ms: float       # position within the archive — the real timeline
+    image: np.ndarray
+
 
 # User-Agent required by the Sentinel gateway for stream/segment endpoints.
 # Without a Mozilla/-prefixed UA, the server returns 403 "browser required".
@@ -65,6 +84,10 @@ class _HLSFetcher:
         self._session.headers.update({"User-Agent": _MOZILLA_UA})
         self._aes_key: Optional[bytes] = None
         self._key_lock = threading.Lock()
+        # Real segment duration, read from #EXTINF rather than assumed. Every
+        # archive position downstream is derived from it, so a wrong value
+        # silently skews the whole timeline.
+        self.seg_duration_s: float = 6.0
 
     # ── manifest ──────────────────────────────────────────────────────────────
 
@@ -78,12 +101,19 @@ class _HLSFetcher:
         segments: list[str] = []
         base = f"{settings.sentinel_base_url}/{cam_id}"
 
+        seen_extinf = False
         for raw_line in r.text.splitlines():
             line = raw_line.strip()
             if line.startswith("#EXT-X-KEY"):
                 for part in line.split(","):
                     if part.startswith("URI="):
                         key_url = part[4:].strip('"')
+            elif line.startswith("#EXTINF") and not seen_extinf:
+                try:
+                    self.seg_duration_s = float(line.split(":", 1)[1].rstrip(","))
+                    seen_extinf = True
+                except (IndexError, ValueError):
+                    pass  # keep the 6.0 s default
             elif line and not line.startswith("#"):
                 # Segment file — may be relative
                 if line.startswith("http"):
@@ -132,8 +162,8 @@ class CameraStream:
     Usage::
 
         with CameraStream(cam_id, cookie) as stream:
-            for frame_idx, pts_ms, frame_bgr in stream.frames():
-                ...  # frame_bgr is a numpy array (H, W, 3) BGR
+            for f in stream.frames():
+                ...  # f.image is a numpy array (H, W, 3) BGR; f.archive_ms is the timeline
 
     Connection strategy:
     - RTSP (with email+password in URL) if port 8554 is reachable
@@ -179,7 +209,10 @@ class CameraStream:
                     continue
                 backoff = settings.stream_reconnect_base_s  # reset on success
                 if frame_idx % settings.frame_skip == 0:
-                    yield frame_idx, self.cap.get(cv2.CAP_PROP_POS_MSEC), frame
+                    pos_ms = self.cap.get(cv2.CAP_PROP_POS_MSEC)
+                    # RTSP is a live join with no archive origin, so stream
+                    # position is the best timeline available.
+                    yield FrameRef(frame_idx, -1, pos_ms, pos_ms, frame)
                 frame_idx += 1
             except Exception as exc:
                 log.error("%s RTSP error: %s", self.prefix, exc)
@@ -262,12 +295,17 @@ class CameraStream:
 
                 if not window:
                     log.warning("%s No segments in requested range, resetting to full archive", self.prefix)
-                    window = segments
+                    window, _start = segments, 0
 
                 # Kick off first segment download immediately
                 threading.Thread(target=_prefetch, args=(window[0],), daemon=True).start()
 
-                for seg_idx, seg_url in enumerate(window):
+                for win_idx, seg_url in enumerate(window):
+                    # Position in the whole archive, not in the slice. With a
+                    # start_time set these differ, and only the archive index
+                    # can place a frame on a timeline.
+                    seg_idx = _start + win_idx
+
                     # Wait for this segment's prefetch to complete
                     if not prefetch_event.wait(timeout=120):
                         log.warning("%s Segment %d timed out, skipping", self.prefix, seg_idx)
@@ -275,10 +313,12 @@ class CameraStream:
                     prefetch_event.clear()
                     prefetch_data[0] = None
 
-                    # Start prefetching the next segment right away
-                    if seg_idx + 1 < len(segments):
+                    # Prefetch the next segment *of the window*. Indexing the
+                    # unsliced list here would silently fetch from the wrong
+                    # part of the archive whenever a time window was requested.
+                    if win_idx + 1 < len(window):
                         threading.Thread(
-                            target=_prefetch, args=(segments[seg_idx + 1],), daemon=True
+                            target=_prefetch, args=(window[win_idx + 1],), daemon=True
                         ).start()
 
                     if seg_bytes is None:
@@ -298,7 +338,12 @@ class CameraStream:
                                 break
                             if seg_frames % settings.frame_skip == 0:
                                 pts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-                                yield frame_idx, pts_ms, frame
+                                archive_ms = (
+                                    seg_idx * fetcher.seg_duration_s * 1000.0 + pts_ms
+                                )
+                                yield FrameRef(
+                                    frame_idx, seg_idx, pts_ms, archive_ms, frame
+                                )
                             seg_frames += 1
                             frame_idx += 1
                         cap.release()
@@ -327,7 +372,7 @@ class CameraStream:
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
     ) -> Generator:
-        """Yield (frame_idx, pts_ms, frame_bgr) continuously.
+        """Yield FrameRef objects continuously.
 
         Args:
             start_time: Optional 'HH:MM' or 'HH:MM:SS' position in the 12-hour

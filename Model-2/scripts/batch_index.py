@@ -33,14 +33,15 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from ml.aggregate import TrackAggregator
 from ml.auth import get_cookie
 from ml.config import settings
-from ml.db import commit, get_camera_id, get_connection, write_alert, write_detection
+from ml.db import commit, get_camera_id, get_connection, write_detection
 from ml.models import warm_all_models
 from ml.pipeline import DetectionPipeline
-from ml.storage import upload_thumbnail
 from ml.stream import CameraStream
 from ml.watchlist import WatchlistChecker
+from ml.worker import VEHICLE_CLASS_NAMES, finalise_track
 
 logging.basicConfig(
     level=logging.INFO,
@@ -97,6 +98,7 @@ def index_camera(
     t0 = time.monotonic()
     frame_count = 0
     detection_count = 0
+    track_count = 0
     alert_count = 0
 
     # Override frame_skip for batch mode -- much more aggressive sampling
@@ -104,28 +106,63 @@ def index_camera(
     settings.__dict__["frame_skip"] = BATCH_FRAME_SKIP
 
     try:
+        aggregator = TrackAggregator(
+            camera_uuid,
+            keep_best=settings.track_keep_best,
+            idle_frames=settings.track_idle_frames,
+        )
+        anpr_min_width = settings.min_plate_width_px * 4
+
         with CameraStream(cam_external_id, cookie) as stream:
-            for frame_idx, pts_ms, frame_bgr in stream.frames(
+            for f in stream.frames(
                 start_time=start_time,
                 end_time=end_time,
             ):
-                detections = pipeline.process_frame(frame_bgr, camera_uuid, pts_ms)
+                detections = pipeline.process_frame(
+                    f.image, camera_uuid, f.pts_ms, f.archive_ms
+                )
                 frame_count += 1
 
                 for det in detections:
-                    crop = frame_bgr[
+                    write_detection(conn, det)
+                    detection_count += 1
+
+                    if det.track_id is None:
+                        continue
+
+                    crop = f.image[
                         det.bbox["y1"]:det.bbox["y2"],
                         det.bbox["x1"]:det.bbox["x2"],
                     ]
-                    det.thumbnail_key = upload_thumbnail(crop, det.id, cam_external_id, det.ts)
-                    write_detection(conn, det)
+                    aggregator.add(
+                        track_id=det.track_id,
+                        class_name=det.class_name,
+                        crop_bgr=crop,
+                        bbox=det.bbox,
+                        conf=det.confidence,
+                        archive_ms=f.archive_ms,
+                        frame_idx=f.frame_idx,
+                        colour=det.dominant_color,
+                    )
 
-                    hit = watchlist.check(det)
-                    if hit:
-                        write_alert(conn, hit, det.id)
+                    state = aggregator.tracks.get(det.track_id)
+                    if (
+                        det.class_name in VEHICLE_CLASS_NAMES
+                        and crop.shape[1] >= anpr_min_width
+                        and state is not None
+                        and len(state.plate_reads) < settings.max_plate_reads_per_track
+                    ):
+                        text, _conf, char_probs = pipeline.read_plate(crop)
+                        if text:
+                            aggregator.add_plate_read(det.track_id, text, char_probs)
+
+                # At frame_skip=150 a vehicle is seen once or twice, so tracks
+                # close almost immediately. That is expected for a sampling
+                # index: it records that a vehicle was here, not its path.
+                for finished in aggregator.reap(f.frame_idx):
+                    if finalise_track(conn, pipeline, finished, cam_external_id, watchlist):
                         alert_count += 1
-
-                    detection_count += 1
+                    track_count += 1
 
                 if detections:
                     commit(conn)
@@ -134,9 +171,15 @@ def index_camera(
                 if frame_count % 50 == 0:
                     elapsed = time.monotonic() - t0
                     log.info(
-                        "%s  %d frames sampled | %d detections | %.0fs elapsed",
-                        prefix, frame_count, detection_count, elapsed,
+                        "%s  %d frames sampled | %d vehicles | %.0fs elapsed",
+                        prefix, frame_count, track_count, elapsed,
                     )
+
+        for finished in aggregator.drain():
+            if finalise_track(conn, pipeline, finished, cam_external_id, watchlist):
+                alert_count += 1
+            track_count += 1
+        commit(conn)
 
     except StopIteration:
         pass  # stream.frames() exhausted the archive -- normal end
@@ -174,6 +217,11 @@ def index_camera(
 
 
 def main() -> None:
+    # Declared up front: Python requires `global` before the name is *read*, and
+    # it is read below as an argparse default. Declaring it after that read is
+    # a SyntaxError, so this module could not be imported at all.
+    global BATCH_FRAME_SKIP
+
     parser = argparse.ArgumentParser(description="Setu batch offline indexer")
     parser.add_argument(
         "--cameras",
@@ -204,8 +252,6 @@ def main() -> None:
         help=f"Sample every Nth frame (default: {BATCH_FRAME_SKIP})",
     )
     args = parser.parse_args()
-
-    global BATCH_FRAME_SKIP
     BATCH_FRAME_SKIP = args.frame_skip
 
     if args.cameras.lower() == "all":

@@ -32,18 +32,38 @@ class WatchlistChecker:
             log.warning(f"Failed to refresh watchlist: {e}")
 
     def check(self, det: Detection) -> str | None:
+        """Check a single detection. Kept for the per-frame diagnostic scripts."""
+        return self.check_values(det.plate_text, det.embedding)
+
+    def check_values(
+        self, plate_text: str | None, embedding: list[float] | None
+    ) -> str | None:
+        """Check a plate and/or an embedding against the watchlist.
+
+        The worker calls this once per finished track rather than once per frame.
+        That matters beyond cost: alerting per frame raised the same alert dozens
+        of times for one vehicle, and it decided on evidence from a single frame
+        when the track had far more to offer.
+        """
         with self._lock:
             entries = self._entries.copy()
-            
+
+        det_emb = None
+        if embedding is not None:
+            det_emb = np.array(embedding, dtype=np.float32)
+
         for entry in entries:
-            if entry['type'] == 'plate' and det.plate_text:
-                if det.plate_text.upper() == entry['value'].upper():
+            if entry['type'] == 'plate' and plate_text and entry['value']:
+                if plate_text.upper() == entry['value'].upper():
                     return str(entry['id'])
-                    
-            elif entry['type'] == 'person_embedding' and entry['reference_embedding'] is not None:
-                det_emb = np.array(det.embedding, dtype=np.float32)
-                sim = np.dot(det_emb, entry['reference_embedding'])
+
+            elif (
+                entry['type'] == 'person_embedding'
+                and entry['reference_embedding'] is not None
+                and det_emb is not None
+            ):
+                sim = float(np.dot(det_emb, entry['reference_embedding']))
                 if sim >= settings.watchlist_embed_threshold:
                     return str(entry['id'])
-                    
+
         return None

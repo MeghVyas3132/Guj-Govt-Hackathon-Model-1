@@ -19,8 +19,16 @@ import threading
 import time
 from datetime import datetime, timezone
 
+from ml.aggregate import TrackAggregator, finalise_plate
 from ml.config import settings
-from ml.db import commit, get_camera_id, get_connection, write_alert, write_detection
+from ml.db import (
+    commit,
+    get_camera_id,
+    get_connection,
+    write_alert,
+    write_detection,
+    write_track,
+)
 from ml.models import warm_all_models
 from ml.pipeline import DetectionPipeline
 from ml.storage import upload_thumbnail
@@ -35,6 +43,49 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 _stop_event = threading.Event()
+
+
+VEHICLE_CLASS_NAMES = {"car", "motorcycle", "bus", "truck"}
+
+
+def finalise_track(conn, pipeline, track, cam_external_id, watchlist) -> bool:
+    """Turn a finished track into one vehicle_tracks row, and alert on it.
+
+    This is where the expensive models finally run — once per vehicle, on the
+    few sharpest crops of it, rather than once per box per frame.
+
+    Returns True if the track raised a watchlist alert.
+    """
+    crops = [b.image for b in track.best]
+    if not crops:
+        return False
+
+    # The best crop represents the vehicle; the rest exist to give ANPR and the
+    # quality ranking something to choose between.
+    embeddings = pipeline.embed_batch(crops)
+    embedding = embeddings[0] if embeddings else None
+
+    plate = finalise_plate(track.plate_reads)
+    thumbnail_key = upload_thumbnail(
+        crops[0], f"{track.camera_id}-{track.track_id}", cam_external_id,
+        datetime.now(timezone.utc),
+    )
+
+    track_row_id = write_track(conn, track, embedding, plate, thumbnail_key)
+
+    plate_text, plate_status = plate[0], plate[1]
+    # Only an `exact` plate may raise an alert. A corrected one is a guess, and
+    # a guess that names a real registration is worse than no plate at all.
+    hit = watchlist.check_values(
+        plate_text if plate_status == "exact" else None, embedding
+    )
+    if hit:
+        write_alert(conn, hit, vehicle_track_id=track_row_id)
+        log.warning(
+            "[%s] WATCHLIST MATCH — track=%s plate=%s (%s, %d votes)",
+            cam_external_id, track.track_id, plate_text, plate_status, plate[3],
+        )
+    return bool(hit)
 
 
 def process_camera(cam_external_id: str) -> None:
@@ -57,54 +108,85 @@ def process_camera(cam_external_id: str) -> None:
     from ml.auth import get_cookie
     cookie = get_cookie()
 
+    aggregator = TrackAggregator(
+        camera_uuid,
+        keep_best=settings.track_keep_best,
+        idle_frames=settings.track_idle_frames,
+    )
     frame_count = 0
-    detection_count = 0
+    track_count = 0
+    anpr_min_width = settings.min_plate_width_px * 4
 
     with CameraStream(cam_external_id, cookie) as stream:
-        for frame_idx, pts_ms, frame_bgr in stream.frames():
+        for f in stream.frames():
             if _stop_event.is_set():
                 break
 
-            # Refresh watchlist every ~500 processed frames (≈ a few minutes)
-            if frame_idx % 500 == 0 and frame_idx > 0:
+            if f.frame_idx % 500 == 0 and f.frame_idx > 0:
                 watchlist.refresh()
 
-            detections = pipeline.process_frame(frame_bgr, camera_uuid, pts_ms)
+            detections = pipeline.process_frame(
+                f.image, camera_uuid, f.pts_ms, f.archive_ms
+            )
             frame_count += 1
 
             for det in detections:
-                # Upload thumbnail to MinIO
-                crop = frame_bgr[
+                # Trajectory row: cheap, no embedding, no plate. Those belong to
+                # the track, which knows more than any single frame does.
+                write_detection(conn, det)
+
+                if det.track_id is None:
+                    continue
+
+                crop = f.image[
                     det.bbox["y1"]:det.bbox["y2"],
                     det.bbox["x1"]:det.bbox["x2"],
                 ]
-                det.thumbnail_key = upload_thumbnail(
-                    crop, det.id, cam_external_id, det.ts
+                aggregator.add(
+                    track_id=det.track_id,
+                    class_name=det.class_name,
+                    crop_bgr=crop,
+                    bbox=det.bbox,
+                    conf=det.confidence,
+                    archive_ms=f.archive_ms,
+                    frame_idx=f.frame_idx,
+                    colour=det.dominant_color,
                 )
 
-                # Write detection to Postgres
-                write_detection(conn, det)
+                # Read a plate only when the vehicle is physically close enough
+                # for one to exist in the pixels. A plate is roughly a quarter of
+                # the vehicle's width, so below 4x the OCR floor there is nothing
+                # to find and the read would only add noise to the vote.
+                state = aggregator.tracks.get(det.track_id)
+                if (
+                    det.class_name in VEHICLE_CLASS_NAMES
+                    and crop.shape[1] >= anpr_min_width
+                    and state is not None
+                    and len(state.plate_reads) < settings.max_plate_reads_per_track
+                ):
+                    text, _conf, char_probs = pipeline.read_plate(crop)
+                    if text:
+                        aggregator.add_plate_read(det.track_id, text, char_probs)
 
-                # Check against watchlist → create alert if matched
-                hit = watchlist.check(det)
-                if hit:
-                    write_alert(conn, hit, det.id)
-                    log.warning(
-                        "%s 🚨 WATCHLIST MATCH — entry=%s detection=%s plate=%s",
-                        prefix, hit, det.id, det.plate_text,
-                    )
+            for finished in aggregator.reap(f.frame_idx):
+                finalise_track(conn, pipeline, finished, cam_external_id, watchlist)
+                track_count += 1
 
-                detection_count += 1
-
-            # Commit every frame's detections as a batch
             if detections:
                 commit(conn)
 
             if frame_count % 100 == 0:
                 log.info(
-                    "%s Processed %d frames, %d detections total",
-                    prefix, frame_count, detection_count,
+                    "%s %d frames | %d vehicles recorded | %d tracks open",
+                    prefix, frame_count, track_count, len(aggregator),
                 )
+
+    # Vehicles still in view when we stopped are real sightings too.
+    for finished in aggregator.drain():
+        finalise_track(conn, pipeline, finished, cam_external_id, watchlist)
+        track_count += 1
+    commit(conn)
+    log.info("%s Stopped — %d frames, %d vehicles recorded", prefix, frame_count, track_count)
 
 
 def main() -> None:

@@ -25,8 +25,14 @@ def main():
     cookie = get_cookie()
 
     with CameraStream(args.camera_id, cookie) as stream:
-        for frame_idx, pts_ms, frame in stream.frames(start_time=args.start, end_time=args.end):
-            detections = pipeline.process_frame(frame, args.camera_id, pts_ms)
+        for f in stream.frames(start_time=args.start, end_time=args.end):
+            frame = f.image
+            # read_plates=True is the point of this tool: it shows the raw
+            # per-frame OCR output the worker deliberately no longer trusts on
+            # its own, which is what you want when eyeballing model behaviour.
+            detections = pipeline.process_frame(
+                frame, args.camera_id, f.pts_ms, f.archive_ms, read_plates=True
+            )
             
             for det in detections:
                 x1, y1, x2, y2 = det.bbox["x1"], det.bbox["y1"], det.bbox["x2"], det.bbox["y2"]
