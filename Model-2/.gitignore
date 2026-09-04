@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Env
+.env
+
+# Model cache (downloaded at runtime / build time, not committed)
+runs/
+*.pt
+*.onnx
+*.pth
+
+# Ultralytics / HuggingFace cache
+~/.cache/
+
+# Thumbnails / clips (stored in MinIO, not git)
+thumbnails/
+clips/
+
+# IDE
+.vscode/
+.idea/
+
+plate_crops

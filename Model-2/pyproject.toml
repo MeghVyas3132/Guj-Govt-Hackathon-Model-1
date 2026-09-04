@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "setu-ml"
+version = "0.1.0"
+description = "Setu — AI inference pipeline for cross-camera vehicle tracking and NL search"
+requires-python = ">=3.11"
+dependencies = [
+  # Computer vision + AI
+  "ultralytics>=8.3",          # YOLOv8 + ByteTrack (tracker built-in)
+  "lap>=0.5.12",               # Linear assignment (required by BYTETracker — ultralytics dep)
+  "open-clip-torch>=2.24",     # CLIP ViT-B/32 visual + text embeddings
+  "torch>=2.3",                # PyTorch (CUDA build installed separately, see README)
+  "torchvision>=0.18",
+  "opencv-python-headless>=4.10",
+  "Pillow>=10.4",
+  "fast-plate-ocr>=0.3",       # Lightweight ANPR OCR (primary)
+  "onnxruntime>=1.16",         # Required by fast-plate-ocr
+  # Database
+  "psycopg2-binary>=2.9",      # PostgreSQL driver
+  "pgvector>=0.3",             # pgvector type adapter for psycopg2
+  # Object storage
+  "minio>=7.2",                # MinIO / S3-compatible thumbnail storage
+  # Config + HTTP
+  "pydantic-settings>=2.4",
+  "pydantic>=2.9",
+  "requests>=2.32",            # Sentinel cookie auth
+  "tenacity>=8.5",             # Retry / backoff utilities
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.7",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+setu-worker = "ml.worker:main"
+setu-check  = "ml.scripts.check_feeds:main"
+setu-index  = "scripts.batch_index:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ml*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
