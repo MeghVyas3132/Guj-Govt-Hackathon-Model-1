@@ -16,8 +16,10 @@ dependencies = [
   "torchvision>=0.18",
   "opencv-python-headless>=4.10",
   "Pillow>=10.4",
+  "pycryptodome>=3.20",        # AES-128 decrypt of HLS segments - ml/stream.py
   "fast-plate-ocr>=0.3",       # Lightweight ANPR OCR (primary)
   "onnxruntime>=1.16",         # Required by fast-plate-ocr
+  "omegaconf>=2.3",            # The HF plate-detector checkpoint unpickles into it
   # Database
   "psycopg2-binary>=2.9",      # PostgreSQL driver
   "pgvector>=0.3",             # pgvector type adapter for psycopg2
